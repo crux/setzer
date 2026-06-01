@@ -1,0 +1,129 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"path/filepath"
+	"strings"
+)
+
+const preparingPage = `<!DOCTYPE html><meta charset="utf-8"><title>Setzer</title>
+<body style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;background:#f7f3ec;color:#23201c;display:grid;place-items:center;height:100vh;margin:0">
+<div style="text-align:center"><h1>Preparing…</h1><p>Setzer is cloning the site. Refresh in a moment.</p>
+<p><a href="/admin" style="color:#7a2d28">Settings</a></p></div></body>`
+
+// handleSite serves the working clone (the site plus its in-site editor) at the root.
+func (s *server) handleSite(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	cfg := s.cfg
+	ws := s.ws
+	s.mu.RUnlock()
+
+	if !cfg.Configured() {
+		http.Redirect(w, r, "/admin", http.StatusSeeOther)
+		return
+	}
+	if ws == nil {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprint(w, preparingPage)
+		return
+	}
+	// Never expose Git metadata through the static server.
+	if strings.Contains(r.URL.Path, "/.git") {
+		http.NotFound(w, r)
+		return
+	}
+	root := filepath.Join(ws.dir, siteSubdir(cfg.SiteDir))
+	http.FileServer(http.Dir(root)).ServeHTTP(w, r)
+}
+
+// siteSubdir cleans the configured serve root, anchored so it cannot escape the clone.
+func siteSubdir(dir string) string {
+	if dir == "" {
+		return "."
+	}
+	clean := strings.TrimPrefix(filepath.Clean("/"+filepath.FromSlash(dir)), string(filepath.Separator))
+	if clean == "" {
+		return "."
+	}
+	return clean
+}
+
+// handleSave accepts the in-site editor's content document and commits + pushes it.
+func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// CSRF defenses (on top of the loopback bind): same-origin + a JSON body.
+	// A cross-site HTML form cannot set application/json, and a cross-origin
+	// fetch with it triggers a preflight we never answer.
+	if !sameOrigin(r) {
+		http.Error(w, "cross-origin request rejected", http.StatusForbidden)
+		return
+	}
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		http.Error(w, "expected application/json", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	s.mu.RLock()
+	cfg := s.cfg
+	ws := s.ws
+	s.mu.RUnlock()
+	if !cfg.Configured() || ws == nil {
+		http.Error(w, "not ready", http.StatusServiceUnavailable)
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 5<<20)) // 5 MiB cap
+	if err != nil {
+		http.Error(w, "read body", http.StatusBadRequest)
+		return
+	}
+	if !json.Valid(body) {
+		http.Error(w, "body is not valid JSON", http.StatusBadRequest)
+		return
+	}
+
+	auth, err := authFor(cfg.RepoURL)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "auth: " + err.Error()})
+		return
+	}
+	commit, err := ws.save(cfg.ContentPath, body, auth)
+	if err != nil {
+		if errors.Is(err, errNonFastForward) {
+			writeJSON(w, http.StatusConflict, map[string]any{"error": "content changed upstream; reload and retry"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "commit": commit})
+}
+
+// sameOrigin rejects requests whose Origin host differs from the server's.
+// A missing Origin (non-browser clients) is allowed; browsers always send it on POST.
+func sameOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	return u.Host == r.Host
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}

@@ -12,12 +12,8 @@ type adminData struct {
 	Cfg        *Config
 }
 
-// handleRoot renders the admin UI: setup form when unconfigured, settings when configured.
-func (s *server) handleRoot(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
+// handleAdmin renders the configuration UI at /admin.
+func (s *server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	cfg := s.cfg
 	s.mu.RUnlock()
@@ -28,8 +24,7 @@ func (s *server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleConfig accepts the admin form: persists non-secret config to disk and
-// the token to the OS keychain.
+// handleConfig accepts the admin form: non-secret config to disk, token to the keychain.
 func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -44,6 +39,7 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		RepoURL:     strings.TrimSpace(r.FormValue("repo_url")),
 		Branch:      strings.TrimSpace(r.FormValue("branch")),
 		ContentPath: strings.TrimSpace(r.FormValue("content_path")),
+		SiteDir:     strings.TrimSpace(r.FormValue("site_dir")),
 	}
 	if cfg.RepoURL == "" {
 		http.Error(w, "repository URL is required", http.StatusBadRequest)
@@ -54,6 +50,9 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if cfg.ContentPath == "" {
 		cfg.ContentPath = "content.json"
+	}
+	if cfg.SiteDir == "" {
+		cfg.SiteDir = "."
 	}
 
 	if err := cfg.Save(); err != nil {
@@ -82,7 +81,7 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
 var adminTmpl = template.Must(template.New("admin").Parse(`<!DOCTYPE html>
@@ -92,6 +91,7 @@ var adminTmpl = template.Must(template.New("admin").Parse(`<!DOCTYPE html>
    background:#f7f3ec;color:#23201c;margin:0;display:grid;place-items:center;min-height:100vh}
  .card{background:#fffdf8;border:1px solid #d8d1c4;border-radius:10px;padding:30px 34px;width:min(480px,92vw)}
  h1{margin:.1em 0 .15em} .s{color:#5a554d;margin-top:0}
+ .s a{color:#7a2d28}
  .badge{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
    background:#7a2d28;color:#fff;padding:3px 10px;border-radius:999px}
  .badge.ok{background:#3a6b4a}
@@ -107,7 +107,7 @@ var adminTmpl = template.Must(template.New("admin").Parse(`<!DOCTYPE html>
 <body><div class="card">
  {{if .Configured}}<span class="badge ok">configured</span>{{else}}<span class="badge">not configured</span>{{end}}
  <h1>Setzer</h1>
- <p class="s">{{if .Configured}}Managing <b>{{.Cfg.RepoURL}}</b>. Update settings below.{{else}}Point Setzer at the site's repository and paste a GitHub access token.{{end}}</p>
+ <p class="s">{{if .Configured}}Managing <b>{{.Cfg.RepoURL}}</b>. <a href="/">Open the site &rarr;</a>{{else}}Point Setzer at the site's repository and paste a GitHub access token.{{end}}</p>
  <form method="post" action="/config">
   <label>Repository URL
    <input name="repo_url" value="{{.Cfg.RepoURL}}" placeholder="https://github.com/owner/repo.git" required></label>
@@ -115,6 +115,8 @@ var adminTmpl = template.Must(template.New("admin").Parse(`<!DOCTYPE html>
    <input name="branch" value="{{if .Cfg.Branch}}{{.Cfg.Branch}}{{else}}main{{end}}"></label>
   <label>Content path (within the repo)
    <input name="content_path" value="{{if .Cfg.ContentPath}}{{.Cfg.ContentPath}}{{else}}content.json{{end}}"></label>
+  <label>Site directory (serve root in the repo)
+   <input name="site_dir" value="{{if .Cfg.SiteDir}}{{.Cfg.SiteDir}}{{else}}.{{end}}"></label>
   <label>GitHub access token (PAT)
    <input name="token" type="password" autocomplete="off"
      placeholder="{{if .Configured}}stored — leave blank to keep{{else}}fine-grained PAT, contents:write{{end}}"></label>

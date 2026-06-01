@@ -18,6 +18,7 @@ type Config struct {
 	RepoURL     string `json:"repo_url"`     // e.g. https://github.com/owner/repo.git
 	Branch      string `json:"branch"`       // e.g. main
 	ContentPath string `json:"content_path"` // path within the repo, e.g. content.json
+	SiteDir     string `json:"site_dir"`     // serve root within the repo ("." or e.g. "site")
 }
 
 // Configured reports whether enough is set to operate.

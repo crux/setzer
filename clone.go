@@ -4,11 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-git/go-git/v5"
+	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/zalando/go-keyring"
@@ -115,6 +119,59 @@ func (w *workspace) pull(auth transport.AuthMethod) error {
 		return fmt.Errorf("pull: %w", err)
 	}
 	return nil
+}
+
+// errNonFastForward signals the remote moved on; the caller should reload and retry.
+var errNonFastForward = errors.New("non-fast-forward push rejected")
+
+// save writes data to contentPath within the clone, commits it, and pushes to origin.
+func (w *workspace) save(contentPath string, data []byte, auth transport.AuthMethod) (string, error) {
+	// Anchor to "/" then trim, so any ".." is neutralised before it can escape the clone.
+	rel := strings.TrimPrefix(path.Clean("/"+contentPath), "/")
+	if rel == "" || rel == "." {
+		return "", fmt.Errorf("invalid content path %q", contentPath)
+	}
+	full := filepath.Join(w.dir, filepath.FromSlash(rel))
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(full, data, 0o644); err != nil {
+		return "", err
+	}
+
+	wt, err := w.repo.Worktree()
+	if err != nil {
+		return "", err
+	}
+	if _, err := wt.Add(rel); err != nil {
+		return "", fmt.Errorf("git add: %w", err)
+	}
+	hash, err := wt.Commit("Update "+rel+" via Setzer", &git.CommitOptions{
+		Author: &object.Signature{Name: "Setzer", Email: "setzer@localhost", When: time.Now()},
+	})
+	if err != nil {
+		return "", fmt.Errorf("commit: %w", err)
+	}
+
+	refSpec := gitconfig.RefSpec(fmt.Sprintf("refs/heads/%s:refs/heads/%s", w.branch, w.branch))
+	err = w.repo.Push(&git.PushOptions{
+		RemoteName: "origin",
+		Auth:       auth,
+		RefSpecs:   []gitconfig.RefSpec{refSpec},
+	})
+	switch {
+	case err == nil, errors.Is(err, git.NoErrAlreadyUpToDate):
+		return hash.String(), nil
+	case isNonFastForward(err):
+		return "", errNonFastForward
+	default:
+		return "", fmt.Errorf("push: %w", err)
+	}
+}
+
+// isNonFastForward detects a push rejected because the remote advanced.
+func isNonFastForward(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "non-fast-forward")
 }
 
 // syncWorkspace ensures the working clone exists and is up to date, then stores

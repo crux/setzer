@@ -29,8 +29,10 @@ func main() {
 	srv := &server{cfg: cfg}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", srv.handleRoot)
-	mux.HandleFunc("/config", srv.handleConfig)
+	mux.HandleFunc("/admin", srv.handleAdmin)   // config UI
+	mux.HandleFunc("/config", srv.handleConfig) // POST config
+	mux.HandleFunc("/__save", srv.handleSave)   // POST content -> commit + push
+	mux.HandleFunc("/", srv.handleSite)         // serve the working clone (or setup)
 
 	log.Printf("setzer listening on http://%s", *addr)
 	if cfg.Configured() {
