@@ -35,6 +35,15 @@ func main() {
 	log.Printf("setzer listening on http://%s", *addr)
 	if cfg.Configured() {
 		log.Printf("configured for %s (branch %s)", cfg.RepoURL, cfg.Branch)
+		// Clone/refresh the working copy in the background so startup isn't
+		// blocked on the network.
+		go func() {
+			if err := srv.syncWorkspace(); err != nil {
+				log.Printf("workspace sync failed: %v", err)
+			} else {
+				log.Printf("workspace ready")
+			}
+		}()
 	} else {
 		log.Printf("not configured — open the address above to set up")
 	}
@@ -44,10 +53,11 @@ func main() {
 	}
 }
 
-// server holds Setzer's runtime state. The working clone and the /__save
-// handler arrive in later increments. cfg is guarded by mu because the admin
-// UI can replace it while requests are in flight.
+// server holds Setzer's runtime state. The /__save handler arrives in a later
+// increment. cfg and ws are guarded by mu because the admin UI can replace the
+// config (and trigger a re-clone) while requests are in flight.
 type server struct {
 	mu  sync.RWMutex
 	cfg *Config
+	ws  *workspace
 }

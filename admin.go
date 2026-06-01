@@ -2,6 +2,7 @@ package main
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -71,6 +72,15 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.cfg = cfg
 	s.mu.Unlock()
+
+	// Configuring (or re-pointing) the repo kicks off a clone/refresh.
+	go func() {
+		if err := s.syncWorkspace(); err != nil {
+			log.Printf("workspace sync failed: %v", err)
+		} else {
+			log.Printf("workspace ready for %s", cfg.RepoURL)
+		}
+	}()
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
