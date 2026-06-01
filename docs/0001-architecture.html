@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADR 0001 — Setzer Architecture</title>
+<style>
+  :root{
+    --ink:#23201c; --soft:#5a554d; --line:#d8d1c4; --paper:#f7f3ec; --panel:#fffdf8;
+    --accent:#7a2d28; --gold:#a9803f; --green:#3a6b4a; --machine:#eef4ee; --gh:#eef1f6; --pub:#f5f0e6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}
+  .wrap{max-width:980px;margin:0 auto;padding:48px 28px 80px}
+  h1{font-size:2rem;margin:0 0 .3em;letter-spacing:-.01em}
+  h2{font-size:1.3rem;margin:2.4em 0 .6em;padding-bottom:.25em;border-bottom:1px solid var(--line)}
+  h3{font-size:1.02rem;margin:1.4em 0 .3em}
+  p,li{color:var(--ink)}
+  .meta{color:var(--soft);font-size:.92rem;margin:.2em 0 0}
+  .pill{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    background:var(--green);color:#fff;padding:3px 10px;border-radius:999px;vertical-align:middle;margin-left:8px}
+  code{background:#efe9df;padding:1px 6px;border-radius:4px;font-size:.88em;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .lead{font-size:1.06rem;color:var(--soft)}
+  ol.dec{padding-left:0;counter-reset:d;list-style:none}
+  ol.dec>li{position:relative;margin:.9em 0;padding:14px 16px 14px 52px;background:var(--panel);
+    border:1px solid var(--line);border-radius:8px}
+  ol.dec>li::before{counter-increment:d;content:counter(d);position:absolute;left:14px;top:14px;
+    width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700}
+  ol.dec b{display:block;margin-bottom:.15em}
+  /* diagram */
+  .diagram{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px;margin:1.2em 0}
+  .zones{display:flex;gap:0;align-items:stretch;flex-wrap:wrap}
+  .zone{flex:1 1 0;min-width:210px;border:1.5px solid var(--line);border-radius:9px;padding:14px;margin:6px}
+  .zone.machine{background:var(--machine)} .zone.gh{background:var(--gh)} .zone.pub{background:var(--pub)}
+  .zone h4{margin:0 0 .6em;font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--soft)}
+  .box{background:#fff;border:1px solid var(--line);border-radius:7px;padding:9px 11px;margin:7px 0;font-size:.9rem}
+  .box .t{font-weight:600} .box .s{color:var(--soft);font-size:.82rem}
+  .box.accent{border-color:var(--accent)} .box.gold{border-color:var(--gold)} .box.green{border-color:var(--green)}
+  .flowrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:9px 0}
+  .step{background:#fff;border:1px solid var(--line);border-radius:7px;padding:8px 12px;font-size:.88rem;flex:0 1 auto}
+  .step b{color:var(--accent)}
+  .arrow{color:var(--gold);font-weight:700;font-size:1.1rem}
+  .note{font-size:.82rem;color:var(--soft);margin-top:8px}
+  table{border-collapse:collapse;width:100%;margin:.6em 0;font-size:.93rem}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:#efe9df;font-size:.8rem;letter-spacing:.04em;text-transform:uppercase;color:var(--soft)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:640px){.two{grid-template-columns:1fr}}
+  .tag{font-size:.72rem;font-weight:700;color:#fff;background:var(--gold);border-radius:4px;padding:1px 6px}
+  .tag.future{background:var(--soft)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>ADR 0001 — Setzer Architecture <span class="pill">Accepted</span></h1>
+  <p class="meta">Status: Accepted (design) &middot; Date: 2026-06-01 &middot; Project: Setzer (standalone tool)</p>
+
+  <p class="lead">Setzer is a single local Go binary — a schema-blind <em>compositor</em> — that serves a
+  static site together with the site's own in-site editor on localhost, and on save commits the content
+  change to the site's Git repository, which a static host (e.g. GitHub Pages) then publishes.</p>
+
+  <h2>Context</h2>
+  <p>Setzer originates from the Wiener Bluut site: a bespoke single-page static site whose
+  non-technical editor needs to update <em>structured</em> content (events, programme, testimonials,
+  contact) with changes that actually persist and publish — without a cloud CMS. Exploring that need
+  produced a set of constraints that no off-the-shelf tool satisfies together, so we extract the
+  generic part into its own reusable tool.</p>
+  <p><b>Established constraints:</b></p>
+  <ul>
+    <li>The site is <b>static</b>; <b>Git is the content store</b> (free versioning, rollback, diff).</li>
+    <li>The editor is <b>bespoke and in-site</b> — schema- and design-aware, edits the real page.</li>
+    <li><b>No cloud runtime and no cloud secrets.</b> The only non-static action is the authenticated write.</li>
+    <li><b>Reusable across sites.</b> Each site is independent; the tool is generic.</li>
+    <li>The editor must be runnable by <b>anyone who can use a computer</b> (no Git account required).</li>
+  </ul>
+
+  <h2>Decision</h2>
+  <p>The only part of the system that cannot be static is the <b>authenticated write</b>. Setzer
+  performs it as a <b>local process running as the editor</b> — not a deployed cloud function — which
+  dissolves all cloud hosting and secret-management. Everything else (storage, versioning, serving) is
+  Git + a static host.</p>
+
+  <ol class="dec">
+    <li><b>Git as storage.</b> Content is committed (e.g. <code>content.json</code>) to the site repo — the single source of truth. Versioning, rollback and diff come for free.</li>
+    <li><b>Static serving via the site's host.</b> The public pulls a static <code>content.json</code> from the CDN and renders client-side. Serving needs no runtime; "build" is trivial for a vanilla site.</li>
+    <li><b>The write runs locally.</b> The authenticated commit is done by the local Setzer binary, acting as the editor — eliminating any deployed function, its host, and its secret store.</li>
+    <li><b>Bespoke editor lives in the site; Setzer is schema-blind.</b> The editor (schema + design coupled) ships with the site. Setzer never inspects content. The seam is one opaque <code>POST /__save</code> of the content document.</li>
+    <li><b>Repo separation.</b> Setzer is its own (public) repo; each site is its own repo. The only coupling is a thin convention — "a Git repo laid out the way Setzer expects" — so one tool serves N sites.</li>
+    <li><b>Auth = GitHub PAT, in the OS keychain.</b> A fine-grained token (contents:write on the one repo), entered via Setzer's browser admin UI and stored in the keychain. Chosen so editors with <em>no</em> GitHub account can still publish. <span class="tag future">later</span> ambient-<code>gh</code> support; OAuth device flow.</li>
+    <li><b>Local working clone.</b> Setzer keeps a clone and commits/pushes from it — enabling future build steps and offline editing.</li>
+    <li><b>Two distinct browser UIs.</b> Setzer's own <em>config/admin</em> UI (which repo, paste PAT) is generic; the <em>content editor</em> is the site's bespoke UI. Same browser, different owners.</li>
+    <li><b>Security by capability, not obscurity.</b> The save endpoint binds to <code>127.0.0.1</code> only, with a one-time nonce + Origin checks (CSRF / DNS-rebinding defense). The publicly-shipped editor is inert — with no local Setzer to POST to, it cannot persist.</li>
+    <li><b>Editor ships in public output, inert — no stripping.</b> Discoverable but unusable for public writes by design. The only "cost" is a little JS and a visible schema, both immaterial.</li>
+  </ol>
+
+  <h2>Topology — what lives where</h2>
+  <div class="diagram">
+    <div class="zones">
+      <div class="zone machine">
+        <h4>Editor's machine</h4>
+        <div class="box accent"><span class="t">Setzer (Go binary)</span><div class="s">serves on 127.0.0.1, loopback only</div></div>
+        <div class="box"><span class="t">Admin UI</span><div class="s">config: repo + paste PAT</div></div>
+        <div class="box"><span class="t">Served site + in-site editor</span><div class="s">the site's own bespoke editor</div></div>
+        <div class="box"><span class="t">Working clone</span><div class="s">local checkout of the site repo</div></div>
+        <div class="box gold"><span class="t">OS keychain</span><div class="s">holds the GitHub PAT</div></div>
+      </div>
+      <div class="zone gh">
+        <h4>GitHub</h4>
+        <div class="box green"><span class="t">Site repo</span><div class="s">content.json + design + output</div></div>
+        <div class="box"><span class="t">Pages (CDN)</span><div class="s">serves static files, HTTPS</div></div>
+        <div class="note">Setzer repo (this tool) is public, no secrets.</div>
+      </div>
+      <div class="zone pub">
+        <h4>Public visitor</h4>
+        <div class="box"><span class="t">Any browser</span><div class="s">pulls static content.json, renders</div></div>
+        <div class="note">Never touches Setzer. Sees the inert editor; cannot persist.</div>
+      </div>
+    </div>
+    <p class="note">Secrets exist only in the editor's keychain at runtime — never in either repo. The PAT is born in GitHub, stored locally, used only by the local binary.</p>
+  </div>
+
+  <h2>Flows</h2>
+  <h3>Public view (no Setzer involved)</h3>
+  <div class="diagram">
+    <div class="flowrow">
+      <span class="step">browser</span><span class="arrow">&rarr;</span>
+      <span class="step">GET <b>content.json</b> (CDN)</span><span class="arrow">&rarr;</span>
+      <span class="step">render client-side</span>
+    </div>
+  </div>
+  <h3>Edit &amp; publish</h3>
+  <div class="diagram">
+    <div class="flowrow">
+      <span class="step">in-site editor (localhost)</span><span class="arrow">&rarr;</span>
+      <span class="step"><b>POST /__save</b></span><span class="arrow">&rarr;</span>
+      <span class="step">Setzer: verify <b>nonce + Origin</b></span>
+    </div>
+    <div class="flowrow">
+      <span class="arrow">&darr;</span>
+    </div>
+    <div class="flowrow">
+      <span class="step">write content.json in clone</span><span class="arrow">&rarr;</span>
+      <span class="step">git commit</span><span class="arrow">&rarr;</span>
+      <span class="step">git push <b>(PAT)</b></span><span class="arrow">&rarr;</span>
+      <span class="step">GitHub</span><span class="arrow">&rarr;</span>
+      <span class="step">Pages publishes</span>
+    </div>
+    <p class="note">v0 optimistic safety: a non-fast-forward push is rejected by Git. <span class="tag future">later</span> explicit lock via file SHA / If-Match.</p>
+  </div>
+
+  <h2>MVP scope (v0)</h2>
+  <div class="two">
+    <div>
+      <h3>In v0 <span class="tag">build now</span></h3>
+      <ul>
+        <li>Browser <b>admin UI</b>: configure repo, paste PAT &rarr; keychain.</li>
+        <li>Maintain a <b>working clone</b> of the site repo.</li>
+        <li><b>Serve</b> the clone on <code>127.0.0.1:port</code> (loopback only).</li>
+        <li><b>POST /__save</b> &rarr; write content.json &rarr; commit &rarr; push (PAT).</li>
+        <li>Optimistic safety via non-fast-forward push rejection.</li>
+        <li><b>Pure-Go / no-CGO</b> to keep cross-compile trivial.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Deferred <span class="tag future">later</span></h3>
+      <ul>
+        <li>Ambient-<code>gh</code> auth support (alongside PAT).</li>
+        <li>OAuth <b>device flow</b> (for editors who do have GitHub).</li>
+        <li>Explicit optimistic lock via SHA / If-Match.</li>
+        <li>Build-step hook (run a generator before commit).</li>
+        <li>Multi-site management in one Setzer.</li>
+        <li>Packaging: Homebrew tap, Scoop/winget.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Non-functional &amp; future awareness</h2>
+  <table>
+    <tr><th>Concern</th><th>Direction</th></tr>
+    <tr><td>Platforms</td><td>macOS + Windows (Linux ~free). Keep <b>pure-Go / no-CGO</b> so <code>GOOS/GOARCH</code> cross-compiles stay trivial; pick a keychain lib that respects that (exec/syscall-based, not CGO).</td></tr>
+    <tr><td>Distribution</td><td>Homebrew tap for macOS (CLI via brew needs no Apple notarization); Scoop or winget for Windows.</td></tr>
+    <tr><td>Media / images</td><td>Not via the content-commit path. Repo-hosted for now; a CDN / object-store endpoint later if needed.</td></tr>
+  </table>
+
+  <h2>Consequences</h2>
+  <div class="two">
+    <div>
+      <h3>Gains</h3>
+      <ul>
+        <li>No cloud runtime, no cloud secrets, all-GitHub.</li>
+        <li>Content versioned in Git; rollback for free.</li>
+        <li>One generic tool, reusable across sites.</li>
+        <li>Simple ops; nothing to deploy or keep alive.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Costs</h3>
+      <ul>
+        <li>The editor must run a local binary (acceptable: "anyone who can use a computer").</li>
+        <li>Per-machine setup; a token to provision per editor.</li>
+        <li>Not reachable from an arbitrary browser unless the tool is running.</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

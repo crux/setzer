@@ -1,0 +1,18 @@
+# Compiled binaries / build output
+/setzer
+/dist/
+*.exe
+*.test
+*.out
+
+# Go
+/vendor/
+
+# Local runtime data (working clones, local config/state)
+/.setzer/
+*.local
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
