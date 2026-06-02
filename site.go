@@ -91,7 +91,7 @@ func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	auth, err := authFor(cfg.RepoURL)
+	auth, err := authFor(cfg)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "auth: " + err.Error()})
 		return

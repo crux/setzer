@@ -63,6 +63,14 @@ On macOS you may be prompted once to allow keychain access.
 To rotate: generate a new token, paste it into `/admin` again, then revoke the
 old one on GitHub.
 
+### Shortcut: reuse your `gh` login
+
+If you already use the [GitHub CLI](https://cli.github.com), tick **“Use my
+GitHub CLI (gh) login”** in `/admin` instead of pasting a token — Setzer will use
+`gh auth token`. Note this token is broad-scoped (all your repos) and tied to
+your `gh` session, so it's best for your own use rather than a least-privilege
+or hand-it-to-someone setup.
+
 ## Status
 
 Early MVP. The tool builds, runs, configures, clones, and serves the site, and

@@ -40,6 +40,7 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		Branch:      strings.TrimSpace(r.FormValue("branch")),
 		ContentPath: strings.TrimSpace(r.FormValue("content_path")),
 		SiteDir:     strings.TrimSpace(r.FormValue("site_dir")),
+		UseGH:       r.FormValue("use_gh") == "1",
 	}
 	if cfg.RepoURL == "" {
 		http.Error(w, "repository URL is required", http.StatusBadRequest)
@@ -117,7 +118,10 @@ var adminTmpl = template.Must(template.New("admin").Parse(`<!DOCTYPE html>
    <input name="content_path" value="{{if .Cfg.ContentPath}}{{.Cfg.ContentPath}}{{else}}content.json{{end}}"></label>
   <label>Site directory (serve root in the repo)
    <input name="site_dir" value="{{if .Cfg.SiteDir}}{{.Cfg.SiteDir}}{{else}}.{{end}}"></label>
-  <label>GitHub access token (PAT)
+  <label style="display:flex;align-items:center;gap:8px">
+   <input type="checkbox" name="use_gh" value="1" style="width:auto;margin:0" {{if .Cfg.UseGH}}checked{{end}}>
+   Use my GitHub CLI (gh) login — no token needed</label>
+  <label>GitHub access token (PAT) <span style="font-weight:400">— ignored if using gh</span>
    <input name="token" type="password" autocomplete="off"
      placeholder="{{if .Configured}}stored — leave blank to keep{{else}}fine-grained PAT, contents:write{{end}}"></label>
   <button type="submit">Save</button>

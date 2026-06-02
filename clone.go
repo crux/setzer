@@ -43,15 +43,28 @@ func repoSlug(repoURL string) string {
 	return strings.NewReplacer("/", "-", ":", "-", "@", "-").Replace(s)
 }
 
-// authFor builds git auth from the keychain PAT. A missing token yields nil auth
-// (which still works for public repositories).
-func authFor(repoURL string) (transport.AuthMethod, error) {
-	token, err := GetToken(repoURL)
-	if err != nil {
-		if errors.Is(err, keyring.ErrNotFound) {
-			return nil, nil
+// authFor builds git auth from either the GitHub CLI (when enabled) or the
+// keychain PAT. A missing keychain token yields nil auth (works for public repos).
+func authFor(cfg *Config) (transport.AuthMethod, error) {
+	var token string
+	if cfg.UseGH {
+		t, err := ghToken()
+		if err != nil {
+			return nil, fmt.Errorf("gh auth token: %w", err)
 		}
-		return nil, err
+		token = t
+	} else {
+		t, err := GetToken(cfg.RepoURL)
+		if err != nil {
+			if errors.Is(err, keyring.ErrNotFound) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		token = t
+	}
+	if token == "" {
+		return nil, nil
 	}
 	// GitHub accepts any non-empty username when authenticating with a token.
 	return &githttp.BasicAuth{Username: "setzer", Password: token}, nil
@@ -183,7 +196,7 @@ func (s *server) syncWorkspace() error {
 	if !cfg.Configured() {
 		return nil
 	}
-	auth, err := authFor(cfg.RepoURL)
+	auth, err := authFor(cfg)
 	if err != nil {
 		return err
 	}

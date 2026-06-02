@@ -19,6 +19,7 @@ type Config struct {
 	Branch      string `json:"branch"`       // e.g. main
 	ContentPath string `json:"content_path"` // path within the repo, e.g. content.json
 	SiteDir     string `json:"site_dir"`     // serve root within the repo ("." or e.g. "site")
+	UseGH       bool   `json:"use_gh"`       // use `gh auth token` instead of a keychain PAT
 }
 
 // Configured reports whether enough is set to operate.
