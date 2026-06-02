@@ -16,6 +16,7 @@ arranges prepared content and hands it to the press.
 - **Auth:** a GitHub token held locally in the OS keychain
 
 Full design rationale: [`docs/0001-architecture.html`](docs/0001-architecture.html).
+How a site talks to Setzer: [`docs/client-contract.md`](docs/client-contract.md).
 
 ## Build & run
 
