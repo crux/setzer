@@ -108,6 +108,32 @@ func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "commit": commit})
 }
 
+// handleQuit stops the server — used by the admin "Quit Setzer" button.
+func (s *server) handleQuit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !sameOrigin(r) {
+		http.Error(w, "cross-origin request rejected", http.StatusForbidden)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	s.signalStop()
+}
+
+// signalStop closes the stop channel once, unblocking main to shut down. The
+// graceful Shutdown in main lets this request's response flush first.
+func (s *server) signalStop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	select {
+	case <-s.stop:
+	default:
+		close(s.stop)
+	}
+}
+
 // sameOrigin rejects requests whose Origin host differs from the server's.
 // A missing Origin (non-browser clients) is allowed; browsers always send it on POST.
 func sameOrigin(r *http.Request) bool {

@@ -127,5 +127,13 @@ var adminTmpl = template.Must(template.New("admin").Parse(`<!DOCTYPE html>
   <button type="submit">Save</button>
  </form>
  <p class="hint">The token is stored in your OS keychain — never on disk or in any repo.</p>
+ <button type="button" id="quit" style="margin-top:10px;background:none;border:0;color:#5a554d;text-decoration:underline;cursor:pointer;font-size:.78rem;padding:0">Quit Setzer</button>
+ <script>
+  document.getElementById('quit').addEventListener('click',function(){
+   fetch('/__quit',{method:'POST'}).then(function(){
+    document.body.innerHTML='<div style="display:grid;place-items:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;color:#23201c">Setzer stopped — you can close this tab.</div>';
+   }).catch(function(){});
+  });
+ </script>
 </div></body></html>
 `))

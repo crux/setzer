@@ -3,8 +3,10 @@
 # =============================================================
 BINARY := setzer
 
+APP := build/Setzer.app
+
 .DEFAULT_GOAL := help
-.PHONY: help build run test fmt vet tidy clean
+.PHONY: help build run test fmt vet tidy clean app
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -12,6 +14,13 @@ help: ## Show this help
 
 build: ## Compile the setzer binary
 	go build -o $(BINARY) .
+
+app: ## Build Setzer.app (macOS, host arch; double-click to run)
+	@rm -rf "$(APP)"
+	@mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources"
+	go build -o "$(APP)/Contents/MacOS/setzer" .
+	cp packaging/macos/Info.plist "$(APP)/Contents/Info.plist"
+	@echo "built $(APP) — run: open $(APP)"
 
 run: build ## Build and run (serves http://127.0.0.1:8765)
 	./$(BINARY)

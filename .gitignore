@@ -1,6 +1,7 @@
 # Compiled binaries / build output
 /setzer
 /dist/
+/build/
 *.exe
 *.test
 *.out

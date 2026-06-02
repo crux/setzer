@@ -24,9 +24,17 @@ How a site talks to Setzer: [`docs/client-contract.md`](docs/client-contract.md)
 make build      # compile ./setzer
 make run        # build and serve http://127.0.0.1:8765
 make test       # run the tests
+make app        # build build/Setzer.app (macOS)
 ```
 
 `make` on its own lists all targets.
+
+### macOS app
+
+`make app` produces a double-clickable **`Setzer.app`**. Launching it opens the
+admin UI in your browser; it runs as a background agent (no Dock icon). **Quit**
+via the **“Quit Setzer”** button in the admin page (or `killall setzer`). It's an
+unsigned bundle, so the first launch needs **right-click → Open** once (Gatekeeper).
 
 ## Configure
 
