@@ -72,9 +72,25 @@ GitHub CLI (gh) login”** in `/admin` instead of pasting a token — Setzer wil
 your `gh` session, so it's best for your own use rather than a least-privilege
 or hand-it-to-someone setup.
 
+## Publishing — hosting the site
+
+Setzer commits and **pushes** your edits to the repo. For those edits to appear
+on a live site, the repo needs **static hosting that publishes on push** — Setzer
+doesn't host; Git and your host do.
+
+The natural pairing is **GitHub Pages**, with no build step:
+
+- Put the site in the repo's `/docs` folder (or root) and add an empty
+  **`.nojekyll`** so Pages serves the files verbatim (no Jekyll, no runner).
+- Repo **Settings → Pages → Deploy from a branch → `main` / `/docs`**.
+- Free Pages requires a **public** repo (private needs a paid plan).
+- Set Setzer's **Site directory** to match that folder (e.g. `docs`).
+
+Then every Setzer publish (a push to `main`) is served by Pages automatically.
+`wiener-bluut` is set up exactly this way.
+
 ## Status
 
-Early MVP. The tool builds, runs, configures, clones, and serves the site, and
-the `/__save` → commit → push loop is covered by tests. To publish from the
-editor end to end, the site's in-site editor must post its content to `/__save`
-(the site-side half of the contract).
+Early MVP — the edit → commit → push loop works end to end and is verified
+against a live repo. `wiener-bluut` is the reference site: its in-site editor
+posts to `/__save`, and it is served via GitHub Pages.
