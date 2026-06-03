@@ -64,6 +64,38 @@ admin UI in your browser; it runs as a background agent (no Dock icon). **Quit**
 via the **“Quit Setzer”** button in the admin page (or `killall setzer`). It's an
 unsigned bundle — see [Install](#install-macos) for the first-launch Gatekeeper steps.
 
+## Releasing
+
+Releases are cut by pushing a tag — CI does everything else:
+
+```sh
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+On a `v*` tag, [`.github/workflows/release.yml`](.github/workflows/release.yml)
+runs on a macOS runner and:
+
+1. `make dist` → builds a universal (arm64 + amd64) `Setzer.app`, patches its
+   version from the tag, and packages a drag-install **DMG** (`dist/`).
+2. Creates the GitHub release with the DMG attached.
+3. Generates the cask via [`scripts/write-cask.sh`](scripts/write-cask.sh) and
+   pushes it to [`crux/homebrew-tap`](https://github.com/crux/homebrew-tap), so
+   `brew install --cask crux/tap/setzer` serves the new version.
+
+**One-time prerequisite:** the repo needs a `HOMEBREW_TAP_TOKEN` secret — a token
+with write access to `crux/homebrew-tap`:
+
+```sh
+gh secret set HOMEBREW_TAP_TOKEN --repo crux/setzer
+```
+
+Build a DMG locally without releasing: `make dist` (output in `dist/`).
+
+The moving parts: `Makefile` (`build` / `app` / `dist`), `packaging/macos/Info.plist`
+(bundle metadata), `scripts/write-cask.sh`, and the release workflow. Architecture
+and rationale live in [`docs/0001-architecture.html`](docs/0001-architecture.html).
+
 ## Configure
 
 Open <http://127.0.0.1:8765> — when unconfigured it redirects to `/admin`. Fill in:
