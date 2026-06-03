@@ -118,8 +118,8 @@ Open <http://127.0.0.1:8765> — when unconfigured it redirects to `/admin`. Fil
 |-------|---------|---------|
 | Repository URL | the site repo Setzer commits to | `https://github.com/owner/site.git` |
 | Branch | branch to serve and push | `main` |
-| Site directory | publish root within the repo | `site` (or `.` for repo root) |
-| Content path | the editable content file, repo-relative | `site/js/content.json` |
+| Site directory | publish root within the repo | `docs` (or `.` for repo root) |
+| Content path | the editable content file, repo-relative | `docs/content.json` |
 | Access token | GitHub PAT — see below | — |
 
 On Save, Setzer clones the repo, then serves it at `/`. The in-site editor posts
