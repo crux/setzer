@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+
+      - name: Build DMG
+        run: make dist VERSION="${{ env.VERSION }}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "Setzer ${{ github.ref_name }}" \
+            --generate-notes \
+            "dist/Setzer-${{ env.VERSION }}.dmg"
+
+      - name: Update Homebrew cask
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION=${{ env.VERSION }}
+          SHA=$(shasum -a 256 "dist/Setzer-${VERSION}.dmg" | cut -d' ' -f1)
+
+          git clone \
+            https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/crux/homebrew-tap.git
+
+          bash scripts/write-cask.sh "$VERSION" "$SHA" homebrew-tap/Casks/setzer.rb
+
+          cd homebrew-tap
+          git config user.email "ci@github.com"
+          git config user.name "GitHub Actions"
+          git add Casks/setzer.rb
+          git commit -m "setzer ${VERSION}"
+          git push
