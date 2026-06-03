@@ -18,9 +18,9 @@ arranges prepared content and hands it to the press.
 Full design rationale: [`docs/0001-architecture.html`](docs/0001-architecture.html).
 How a site talks to Setzer: [`docs/client-contract.md`](docs/client-contract.md).
 
-## Install (macOS)
+## Install
 
-### Homebrew (recommended)
+### macOS — Homebrew (recommended)
 
 ```sh
 brew install --cask crux/tap/setzer
@@ -29,7 +29,7 @@ brew install --cask crux/tap/setzer
 Launches cleanly — the cask clears macOS's quarantine flag, so there's no
 Gatekeeper prompt.
 
-### Direct download (DMG)
+### macOS — direct download (DMG)
 
 Download `Setzer-<version>.dmg` from the
 [latest release](https://github.com/crux/setzer/releases/latest), open it, and
@@ -45,6 +45,14 @@ Setzer is unsigned (not notarized), so the **first launch is blocked** —
 4. Click **Open Anyway** once more to confirm — it launches and is remembered.
 
 (Homebrew skips this step; it's the easy path.)
+
+### Windows — installer
+
+Download `Setzer-Setup-<version>.exe` from the
+[latest release](https://github.com/crux/setzer/releases/latest) and run it.
+It's unsigned, so **SmartScreen** warns once — click **More info → Run anyway** —
+then click through the installer (per-user, no admin). Launch **Setzer** from the
+**Start Menu**; uninstall via **Settings → Apps**.
 
 ## Build & run
 
@@ -62,7 +70,7 @@ make app        # build build/Setzer.app (macOS)
 `make app` produces a double-clickable **`Setzer.app`**. Launching it opens the
 admin UI in your browser; it runs as a background agent (no Dock icon). **Quit**
 via the **“Quit Setzer”** button in the admin page (or `killall setzer`). It's an
-unsigned bundle — see [Install](#install-macos) for the first-launch Gatekeeper steps.
+unsigned bundle — see [Install](#install) for the first-launch Gatekeeper steps.
 
 ## Releasing
 
@@ -78,7 +86,8 @@ runs on a macOS runner and:
 
 1. `make dist` → builds a universal (arm64 + amd64) `Setzer.app`, patches its
    version from the tag, and packages a drag-install **DMG** (`dist/`).
-2. Creates the GitHub release with the DMG attached.
+2. Builds the **Windows installer** (`make windows`, via `makensis`) and creates
+   the GitHub release with the **DMG + installer** attached.
 3. Generates the cask via [`scripts/write-cask.sh`](scripts/write-cask.sh) and
    pushes it to [`crux/homebrew-tap`](https://github.com/crux/homebrew-tap), so
    `brew install --cask crux/tap/setzer` serves the new version.
@@ -90,11 +99,13 @@ with write access to `crux/homebrew-tap`:
 gh secret set HOMEBREW_TAP_TOKEN --repo crux/setzer
 ```
 
-Build a DMG locally without releasing: `make dist` (output in `dist/`).
+Build locally without releasing: `make dist` (macOS DMG) or `make windows`
+(Windows installer — needs `brew install makensis`). Output in `dist/`.
 
-The moving parts: `Makefile` (`build` / `app` / `dist`), `packaging/macos/Info.plist`
-(bundle metadata), `scripts/write-cask.sh`, and the release workflow. Architecture
-and rationale live in [`docs/0001-architecture.html`](docs/0001-architecture.html).
+The moving parts: `Makefile` (`build` / `app` / `dist` / `windows`),
+`packaging/macos/Info.plist` + `packaging/windows/setzer.nsi`,
+`scripts/write-cask.sh`, and the release workflow. Architecture and rationale
+live in [`docs/0001-architecture.html`](docs/0001-architecture.html).
 
 ## Configure
 

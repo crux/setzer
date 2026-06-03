@@ -26,6 +26,11 @@ jobs:
       - name: Build DMG
         run: make dist VERSION="${{ env.VERSION }}"
 
+      - name: Build Windows installer
+        run: |
+          brew install makensis
+          make windows VERSION="${{ env.VERSION }}"
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -33,7 +38,8 @@ jobs:
           gh release create "${{ github.ref_name }}" \
             --title "Setzer ${{ github.ref_name }}" \
             --generate-notes \
-            "dist/Setzer-${{ env.VERSION }}.dmg"
+            "dist/Setzer-${{ env.VERSION }}.dmg" \
+            "dist/Setzer-Setup-${{ env.VERSION }}.exe"
 
       - name: Update Homebrew cask
         env:
