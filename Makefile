@@ -1,12 +1,13 @@
 # =============================================================
 # Setzer — build orchestration
 # =============================================================
-BINARY := setzer
-
-APP := build/Setzer.app
+BINARY  := setzer
+VERSION := 0.1.0
+APP     := build/Setzer.app
+DIST    := dist
 
 .DEFAULT_GOAL := help
-.PHONY: help build run test fmt vet tidy clean app
+.PHONY: help build run test fmt vet tidy clean app dist
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -21,6 +22,18 @@ app: ## Build Setzer.app (macOS, host arch; double-click to run)
 	go build -o "$(APP)/Contents/MacOS/setzer" .
 	cp packaging/macos/Info.plist "$(APP)/Contents/Info.plist"
 	@echo "built $(APP) — run: open $(APP)"
+
+dist: ## Build a universal (arm64+amd64) Setzer.app zip for release (-> dist/)
+	@rm -rf "$(DIST)/Setzer.app" "$(DIST)/setzer-arm64" "$(DIST)/setzer-amd64"
+	@mkdir -p "$(DIST)/Setzer.app/Contents/MacOS" "$(DIST)/Setzer.app/Contents/Resources"
+	GOOS=darwin GOARCH=arm64 go build -o "$(DIST)/setzer-arm64" .
+	GOOS=darwin GOARCH=amd64 go build -o "$(DIST)/setzer-amd64" .
+	lipo -create -output "$(DIST)/Setzer.app/Contents/MacOS/setzer" "$(DIST)/setzer-arm64" "$(DIST)/setzer-amd64"
+	cp packaging/macos/Info.plist "$(DIST)/Setzer.app/Contents/Info.plist"
+	@rm -f "$(DIST)/setzer-arm64" "$(DIST)/setzer-amd64"
+	cd "$(DIST)" && ditto -c -k --keepParent Setzer.app "Setzer-$(VERSION)-macos.zip"
+	@echo "==> $(DIST)/Setzer-$(VERSION)-macos.zip"
+	@shasum -a 256 "$(DIST)/Setzer-$(VERSION)-macos.zip"
 
 run: build ## Build and run (serves http://127.0.0.1:8765)
 	./$(BINARY)
@@ -38,4 +51,4 @@ tidy: ## Tidy go.mod / go.sum
 	go mod tidy
 
 clean: ## Remove build artifacts
-	rm -f $(BINARY)
+	rm -rf $(BINARY) build $(DIST)
