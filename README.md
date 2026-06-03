@@ -18,6 +18,34 @@ arranges prepared content and hands it to the press.
 Full design rationale: [`docs/0001-architecture.html`](docs/0001-architecture.html).
 How a site talks to Setzer: [`docs/client-contract.md`](docs/client-contract.md).
 
+## Install (macOS)
+
+### Homebrew (recommended)
+
+```sh
+brew install --cask crux/tap/setzer
+```
+
+Launches cleanly — the cask clears macOS's quarantine flag, so there's no
+Gatekeeper prompt.
+
+### Direct download (DMG)
+
+Download `Setzer-<version>.dmg` from the
+[latest release](https://github.com/crux/setzer/releases/latest), open it, and
+drag **Setzer.app** into **Applications**.
+
+Setzer is unsigned (not notarized), so the **first launch is blocked** —
+*"Apple could not verify that 'Setzer.app' is free of malware…"*. To allow it on
+**macOS Sequoia** (the old right-click → Open trick no longer works):
+
+1. Click **Done** on the warning (not "Move to Trash").
+2. Open **System Settings → Privacy & Security**, scroll to **Security**.
+3. Next to *"Setzer.app was blocked…"*, click **Open Anyway** and authenticate.
+4. Click **Open Anyway** once more to confirm — it launches and is remembered.
+
+(Homebrew skips this step; it's the easy path.)
+
 ## Build & run
 
 ```sh
@@ -34,7 +62,7 @@ make app        # build build/Setzer.app (macOS)
 `make app` produces a double-clickable **`Setzer.app`**. Launching it opens the
 admin UI in your browser; it runs as a background agent (no Dock icon). **Quit**
 via the **“Quit Setzer”** button in the admin page (or `killall setzer`). It's an
-unsigned bundle, so the first launch needs **right-click → Open** once (Gatekeeper).
+unsigned bundle — see [Install](#install-macos) for the first-launch Gatekeeper steps.
 
 ## Configure
 
