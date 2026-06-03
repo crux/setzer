@@ -7,7 +7,7 @@ APP     := build/Setzer.app
 DIST    := dist
 
 .DEFAULT_GOAL := help
-.PHONY: help build run test fmt vet tidy clean app dist
+.PHONY: help build run test fmt vet tidy clean app dist windows
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -40,6 +40,12 @@ dist: ## Build a universal Setzer.app DMG for release (-> dist/)
 	@rm -rf "$(DIST)/dmgroot"
 	@echo "==> $(DIST)/Setzer-$(VERSION).dmg"
 	@shasum -a 256 "$(DIST)/Setzer-$(VERSION).dmg"
+
+windows: ## Cross-build setzer.exe + NSIS installer (needs makensis; Linux/CI)
+	@mkdir -p "$(DIST)"
+	GOOS=windows GOARCH=amd64 go build -ldflags "-H=windowsgui" -o "$(DIST)/setzer.exe" .
+	makensis -DVERSION=$(VERSION) packaging/windows/setzer.nsi
+	@echo "==> $(DIST)/Setzer-Setup-$(VERSION).exe"
 
 run: build ## Build and run (serves http://127.0.0.1:8765)
 	./$(BINARY)
