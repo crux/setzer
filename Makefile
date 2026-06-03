@@ -44,7 +44,7 @@ dist: ## Build a universal Setzer.app DMG for release (-> dist/)
 windows: ## Cross-build setzer.exe + NSIS installer (needs makensis; Linux/CI)
 	@mkdir -p "$(DIST)"
 	GOOS=windows GOARCH=amd64 go build -ldflags "-H=windowsgui" -o "$(DIST)/setzer.exe" .
-	makensis -DVERSION=$(VERSION) packaging/windows/setzer.nsi
+	makensis -DVERSION=$(VERSION) -DEXE="$(CURDIR)/$(DIST)/setzer.exe" -DOUT="$(CURDIR)/$(DIST)/Setzer-Setup-$(VERSION).exe" packaging/windows/setzer.nsi
 	@echo "==> $(DIST)/Setzer-Setup-$(VERSION).exe"
 
 run: build ## Build and run (serves http://127.0.0.1:8765)

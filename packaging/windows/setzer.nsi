@@ -7,10 +7,18 @@
 !ifndef VERSION
   !define VERSION "0.0.0"
 !endif
+; EXE (source binary) and OUT (installer path) are passed absolute by `make
+; windows`; defaults let the script also build from the repo root directly.
+!ifndef EXE
+  !define EXE "dist/setzer.exe"
+!endif
+!ifndef OUT
+  !define OUT "dist/Setzer-Setup-${VERSION}.exe"
+!endif
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}"
 
 Name "${APPNAME}"
-OutFile "dist/Setzer-Setup-${VERSION}.exe"
+OutFile "${OUT}"
 Unicode true
 RequestExecutionLevel user
 InstallDir "$LOCALAPPDATA\Programs\${APPNAME}"
@@ -31,7 +39,7 @@ InstallDir "$LOCALAPPDATA\Programs\${APPNAME}"
 
 Section "Install"
   SetOutPath "$INSTDIR"
-  File "dist/setzer.exe"
+  File "${EXE}"
 
   ; Start Menu shortcut — launches with -open so it pops the browser.
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
