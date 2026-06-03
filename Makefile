@@ -7,7 +7,7 @@ APP     := build/Setzer.app
 DIST    := dist
 
 .DEFAULT_GOAL := help
-.PHONY: help build run test fmt vet tidy clean app dist windows
+.PHONY: help build run test fmt vet tidy clean app dist windows release
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -46,6 +46,15 @@ windows: ## Cross-build setzer.exe + NSIS installer (needs makensis; Linux/CI)
 	GOOS=windows GOARCH=amd64 go build -ldflags "-H=windowsgui" -o "$(DIST)/setzer.exe" .
 	makensis -DVERSION=$(VERSION) -DEXE="$(CURDIR)/$(DIST)/setzer.exe" -DOUT="$(CURDIR)/$(DIST)/Setzer-Setup-$(VERSION).exe" packaging/windows/setzer.nsi
 	@echo "==> $(DIST)/Setzer-Setup-$(VERSION).exe"
+
+release: ## Tag & push a release; CI builds it (usage: make release VERSION=x.y.z)
+	@test "$(origin VERSION)" = "command line" || { echo "usage: make release VERSION=x.y.z"; exit 1; }
+	@test "$$(git rev-parse --abbrev-ref HEAD)" = "main" || { echo "error: releases are cut from main"; exit 1; }
+	@git diff-index --quiet HEAD -- || { echo "error: working tree not clean — commit first"; exit 1; }
+	@test -z "$$(git log origin/main..HEAD --oneline 2>/dev/null)" || { echo "error: unpushed commits on main — push first"; exit 1; }
+	git tag "v$(VERSION)"
+	git push origin "v$(VERSION)"
+	@echo "==> tagged v$(VERSION) — CI is building the release (gh run watch)"
 
 run: build ## Build and run (serves http://127.0.0.1:8765)
 	./$(BINARY)

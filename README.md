@@ -74,12 +74,15 @@ unsigned bundle — see [Install](#install) for the first-launch Gatekeeper step
 
 ## Releasing
 
-Releases are cut by pushing a tag — CI does everything else:
+Cut a release with one command — CI does everything else:
 
 ```sh
-git tag v0.1.1
-git push origin v0.1.1
+make release VERSION=0.1.3
 ```
+
+`make release` checks you're on a clean, pushed `main`, then tags `v0.1.3` and
+pushes it (the equivalent of `git tag v0.1.3 && git push origin v0.1.3`), which
+triggers the workflow below.
 
 On a `v*` tag, [`.github/workflows/release.yml`](.github/workflows/release.yml)
 runs on a macOS runner and:
