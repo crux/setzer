@@ -66,6 +66,13 @@ func main() {
 		go openBrowser(url)
 	}
 
+	// Heads-up: terminal Ctrl-Z (SIGTSTP) does NOT suspend this process. That's a
+	// Go runtime bug — it swallows terminal-delivered SIGTSTP for HTTP servers
+	// (golang/go#76173, fixed in Go 1.27), not anything we do here. It is not
+	// fixable in userspace: a signal.Notify handler can't intercept a signal the
+	// runtime drops before delivery (an explicit SIGTSTP->SIGSTOP handler works
+	// for kill -TSTP but not for terminal Ctrl-Z). Until Go 1.27: background with
+	// `&`, or use the "/__quit" Quit button. Don't re-investigate.
 	httpSrv := &http.Server{Handler: mux}
 	go func() {
 		if err := httpSrv.Serve(ln); err != nil && err != http.ErrServerClosed {
