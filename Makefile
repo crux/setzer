@@ -33,7 +33,11 @@ dist: ## Build a universal Setzer.app DMG for release (-> dist/)
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" "$(DIST)/Setzer.app/Contents/Info.plist"
 	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(VERSION)" "$(DIST)/Setzer.app/Contents/Info.plist"
 	@rm -f "$(DIST)/setzer-arm64" "$(DIST)/setzer-amd64"
-	hdiutil create -volname "Setzer" -srcfolder "$(DIST)/Setzer.app" -ov -format UDZO "$(DIST)/Setzer-$(VERSION).dmg"
+	@rm -rf "$(DIST)/dmgroot" && mkdir -p "$(DIST)/dmgroot"
+	ditto "$(DIST)/Setzer.app" "$(DIST)/dmgroot/Setzer.app"
+	ln -s /Applications "$(DIST)/dmgroot/Applications"
+	hdiutil create -volname "Setzer" -srcfolder "$(DIST)/dmgroot" -ov -format UDZO "$(DIST)/Setzer-$(VERSION).dmg"
+	@rm -rf "$(DIST)/dmgroot"
 	@echo "==> $(DIST)/Setzer-$(VERSION).dmg"
 	@shasum -a 256 "$(DIST)/Setzer-$(VERSION).dmg"
 
