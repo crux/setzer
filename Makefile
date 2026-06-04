@@ -52,7 +52,8 @@ release: ## Tag & push a release; CI builds it (usage: make release VERSION=x.y.
 	@test "$$(git rev-parse --abbrev-ref HEAD)" = "main" || { echo "error: releases are cut from main"; exit 1; }
 	@git diff-index --quiet HEAD -- || { echo "error: working tree not clean — commit first"; exit 1; }
 	@test -z "$$(git log origin/main..HEAD --oneline 2>/dev/null)" || { echo "error: unpushed commits on main — push first"; exit 1; }
-	git tag "v$(VERSION)"
+	@if git rev-parse --verify "refs/tags/v$(VERSION)" >/dev/null 2>&1; then echo "error: tag v$(VERSION) already exists"; exit 1; fi
+	git tag -a "v$(VERSION)" -m "v$(VERSION)"
 	git push origin "v$(VERSION)"
 	@echo "==> tagged v$(VERSION) — CI is building the release (gh run watch)"
 
