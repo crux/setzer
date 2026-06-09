@@ -29,8 +29,8 @@ jobs:
       - name: Build DMG + Windows installer
         run: |
           brew install makensis
-          make dist VERSION=0.0.0-dev
-          make windows VERSION=0.0.0-dev
+          make dist VERSION=dev
+          make windows VERSION=dev
 
       - name: Publish rolling "dev" pre-release
         env:
@@ -43,5 +43,5 @@ jobs:
             --notes "Built from the latest \`main\` (${GITHUB_SHA:0:7}). Unsigned and untested — for trying things out, not for general use." \
             --prerelease \
             --target "$GITHUB_SHA" \
-            dist/Setzer-0.0.0-dev.dmg \
-            dist/Setzer-Setup-0.0.0-dev.exe
+            dist/Setzer-dev.dmg \
+            dist/Setzer-Setup-dev.exe
