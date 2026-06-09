@@ -37,11 +37,21 @@ func main() {
 	mux.HandleFunc("/config", srv.handleConfig) // POST config
 	mux.HandleFunc("/__save", srv.handleSave)   // POST content -> commit + push
 	mux.HandleFunc("/__quit", srv.handleQuit)   // POST -> stop the server
+	mux.HandleFunc("/__ping", srv.handlePing)   // liveness probe (single-instance check)
 	mux.HandleFunc("/", srv.handleSite)         // serve the working clone (or setup)
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "setzer: listen:", err)
+		// Port busy: if it's our own already-running Setzer, just bring it up
+		// instead of failing. Probe first so we don't mistake another program
+		// on the port for Setzer.
+		if setzerResponding(*addr) {
+			existing := "http://" + *addr + "/"
+			log.Printf("setzer is already running at %s — opening it", existing)
+			openBrowser(existing)
+			os.Exit(0)
+		}
+		fmt.Fprintln(os.Stderr, "setzer: cannot listen on "+*addr+":", err)
 		os.Exit(1)
 	}
 	url := "http://" + ln.Addr().String() + "/"
