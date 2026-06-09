@@ -30,7 +30,6 @@ InstallDir "$LOCALAPPDATA\Programs\${APPNAME}"
 !insertmacro MUI_PAGE_INSTFILES
 ; Offer to launch Setzer at the end of the wizard.
 !define MUI_FINISHPAGE_RUN "$INSTDIR\setzer.exe"
-!define MUI_FINISHPAGE_RUN_PARAMETERS "-open"
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM
@@ -41,9 +40,9 @@ Section "Install"
   SetOutPath "$INSTDIR"
   File "${EXE}"
 
-  ; Start Menu shortcut — launches with -open so it pops the browser.
+  ; Start Menu shortcut — launches Setzer (opens the browser by default).
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
-  CreateShortcut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$INSTDIR\setzer.exe" "-open"
+  CreateShortcut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$INSTDIR\setzer.exe"
 
   ; Uninstaller + "Settings -> Apps" entry (per-user, HKCU).
   WriteUninstaller "$INSTDIR\Uninstall.exe"

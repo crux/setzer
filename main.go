@@ -21,7 +21,7 @@ func main() {
 	// Loopback only by default: the admin UI and save endpoint must never be
 	// reachable off-host. Binding to 127.0.0.1 enforces that at the socket.
 	addr := flag.String("addr", "127.0.0.1:8765", "loopback address to listen on")
-	open := flag.Bool("open", false, "open the admin UI in a browser on start")
+	noOpen := flag.Bool("no-open", false, "do not open the browser on start")
 	flag.Parse()
 
 	cfg, err := LoadConfig()
@@ -47,8 +47,10 @@ func main() {
 		// on the port for Setzer.
 		if setzerResponding(*addr) {
 			existing := "http://" + *addr + "/"
-			log.Printf("setzer is already running at %s — opening it", existing)
-			openBrowser(existing)
+			log.Printf("setzer is already running at %s", existing)
+			if !*noOpen {
+				openBrowser(existing)
+			}
 			os.Exit(0)
 		}
 		fmt.Fprintln(os.Stderr, "setzer: cannot listen on "+*addr+":", err)
@@ -71,8 +73,8 @@ func main() {
 		log.Printf("not configured — open the address above to set up")
 	}
 
-	// The .app bundle sets SETZER_OPEN so a double-click pops the browser.
-	if *open || os.Getenv("SETZER_OPEN") != "" {
+	// Open the admin UI by default; -no-open suppresses it (dev / headless).
+	if !*noOpen {
 		go openBrowser(url)
 	}
 

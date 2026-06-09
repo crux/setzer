@@ -13,10 +13,5 @@
   <!-- Background agent: no Dock icon. Interact via the browser; quit via the
        admin "Quit Setzer" button (or `killall setzer`). -->
   <key>LSUIElement</key>            <true/>
-  <!-- Make a double-click open the browser on launch. -->
-  <key>LSEnvironment</key>
-  <dict>
-    <key>SETZER_OPEN</key>          <string>1</string>
-  </dict>
 </dict>
 </plist>
