@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -86,7 +87,9 @@ func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "read body", http.StatusBadRequest)
 		return
 	}
-	if !json.Valid(body) {
+	// Pretty-print so committed content diffs line-by-line (issue #13).
+	pretty, err := prettyJSON(body)
+	if err != nil {
 		http.Error(w, "body is not valid JSON", http.StatusBadRequest)
 		return
 	}
@@ -96,7 +99,7 @@ func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "auth: " + err.Error()})
 		return
 	}
-	commit, err := ws.save(cfg.ContentPath, body, auth)
+	commit, err := ws.save(cfg.ContentPath, pretty, auth)
 	if err != nil {
 		if errors.Is(err, errNonFastForward) {
 			writeJSON(w, http.StatusConflict, map[string]any{"error": "content changed upstream; reload and retry"})
@@ -152,4 +155,16 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// prettyJSON reformats raw JSON with 2-space indentation and a trailing newline,
+// preserving the original key order, so committed content diffs line-by-line.
+// It also validates: malformed JSON returns an error.
+func prettyJSON(raw []byte) ([]byte, error) {
+	var b bytes.Buffer
+	if err := json.Indent(&b, raw, "", "  "); err != nil {
+		return nil, err
+	}
+	b.WriteByte('\n')
+	return b.Bytes(), nil
 }
