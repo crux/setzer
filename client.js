@@ -41,5 +41,44 @@
     });
   }
 
-  window.Setzer = { version: "1", load: load, publish: publish };
+  // -- single active editor tab -----------------------------------------------
+  // Exactly one open tab holds the "setzer-editor" Web Lock and is "primary"
+  // (may edit); others wait. When the primary tab closes, a waiting tab is
+  // promoted automatically. Browsers can't focus or close other tabs, so a
+  // secondary tab simply stays read-only. No Web Locks support -> assume primary
+  // (no coordination, same as before).
+  var primary = false;
+  var listeners = [];
+
+  function setPrimary(v) {
+    if (v === primary) return;
+    primary = v;
+    listeners.forEach(function (cb) { try { cb(primary); } catch (e) {} });
+  }
+
+  // onPrimary(cb) registers a primary-state listener and fires it immediately
+  // with the current state.
+  function onPrimary(cb) {
+    listeners.push(cb);
+    try { cb(primary); } catch (e) {}
+  }
+
+  if (navigator.locks && navigator.locks.request) {
+    navigator.locks.request("setzer-editor", function () {
+      setPrimary(true);
+      // Hold the lock until this tab goes away: the promise never resolves, so
+      // the lock releases only on tab close -> the next waiter is promoted.
+      return new Promise(function () {});
+    }).catch(function () { /* lock error: stay secondary */ });
+  } else {
+    setPrimary(true);
+  }
+
+  window.Setzer = {
+    version: "1",
+    load: load,
+    publish: publish,
+    isPrimary: function () { return primary; },
+    onPrimary: onPrimary
+  };
 })();
