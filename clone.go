@@ -140,29 +140,44 @@ type pushConflict struct{ branch string }
 
 func (e *pushConflict) Error() string { return "publish conflict: offloaded to " + e.branch }
 
-// save writes data to contentPath within the clone, commits it, and pushes to origin.
-func (w *workspace) save(contentPath string, data []byte, auth transport.AuthMethod) (string, error) {
-	// Anchor to "/" then trim, so any ".." is neutralised before it can escape the clone.
-	rel := strings.TrimPrefix(path.Clean("/"+contentPath), "/")
-	if rel == "" || rel == "." {
-		return "", fmt.Errorf("invalid content path %q", contentPath)
-	}
-	full := filepath.Join(w.dir, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(full, data, 0o644); err != nil {
-		return "", err
-	}
+// fileWrite is one file to commit: a repo-relative path and its raw bytes.
+type fileWrite struct {
+	path    string
+	content []byte
+}
 
+// saveFiles writes each file into the clone, commits them as a single commit,
+// and pushes to origin. On a non-fast-forward it offloads the commit to a draft
+// branch and returns *pushConflict. Setzer is content-agnostic: it writes the
+// given bytes to the given (sandboxed) repo-relative paths without inspecting
+// them.
+func (w *workspace) saveFiles(files []fileWrite, message string, auth transport.AuthMethod) (string, error) {
+	if len(files) == 0 {
+		return "", fmt.Errorf("no files to save")
+	}
 	wt, err := w.repo.Worktree()
 	if err != nil {
 		return "", err
 	}
-	if _, err := wt.Add(rel); err != nil {
-		return "", fmt.Errorf("git add: %w", err)
+	for _, f := range files {
+		// Anchor to "/" then trim, so any ".." is neutralised before it can escape the clone.
+		rel := strings.TrimPrefix(path.Clean("/"+f.path), "/")
+		if rel == "" || rel == "." {
+			return "", fmt.Errorf("invalid path %q", f.path)
+		}
+		full := filepath.Join(w.dir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			return "", err
+		}
+		if err := os.WriteFile(full, f.content, 0o644); err != nil {
+			return "", err
+		}
+		if _, err := wt.Add(rel); err != nil {
+			return "", fmt.Errorf("git add %s: %w", rel, err)
+		}
 	}
-	hash, err := wt.Commit("Update "+rel+" via Setzer", &git.CommitOptions{
+
+	hash, err := wt.Commit(commitMessage(message, files), &git.CommitOptions{
 		Author: &object.Signature{Name: "Setzer", Email: "setzer@localhost", When: time.Now()},
 	})
 	if err != nil {
@@ -187,6 +202,17 @@ func (w *workspace) save(contentPath string, data []byte, auth transport.AuthMet
 	default:
 		return "", fmt.Errorf("push: %w", err)
 	}
+}
+
+// commitMessage returns the editor-supplied message, or a default describing the set.
+func commitMessage(message string, files []fileWrite) string {
+	if strings.TrimSpace(message) != "" {
+		return message
+	}
+	if len(files) == 1 {
+		return "Update " + files[0].path + " via Setzer"
+	}
+	return fmt.Sprintf("Update %d files via Setzer", len(files))
 }
 
 // offloadToBranch preserves a commit that couldn't fast-forward: it creates and

@@ -15,16 +15,15 @@ const keyringService = "setzer"
 // Config holds the non-secret settings for the single site Setzer manages.
 // The access token is NOT stored here — it lives in the OS keychain.
 type Config struct {
-	RepoURL     string `json:"repo_url"`     // e.g. https://github.com/owner/repo.git
-	Branch      string `json:"branch"`       // e.g. main
-	ContentPath string `json:"content_path"` // path within the repo, e.g. content.json
-	SiteDir     string `json:"site_dir"`     // serve root within the repo ("." or e.g. "site")
-	UseGH       bool   `json:"use_gh"`       // use `gh auth token` instead of a keychain PAT
+	RepoURL string `json:"repo_url"` // e.g. https://github.com/owner/repo.git
+	Branch  string `json:"branch"`   // e.g. main
+	SiteDir string `json:"site_dir"` // serve root within the repo ("." or e.g. "docs")
+	UseGH   bool   `json:"use_gh"`   // use `gh auth token` instead of a keychain PAT
 }
 
 // Configured reports whether enough is set to operate.
 func (c *Config) Configured() bool {
-	return c != nil && c.RepoURL != "" && c.ContentPath != ""
+	return c != nil && c.RepoURL != ""
 }
 
 // configPath returns the config file path, creating its directory.

@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -55,21 +55,19 @@ func siteSubdir(dir string) string {
 	return clean
 }
 
-// handleSave accepts the in-site editor's content document and commits + pushes it.
+// handleSave accepts a multipart file set from the in-site editor and commits +
+// pushes it as one commit. Setzer is content-agnostic: it writes the supplied
+// bytes to the supplied (sandboxed) paths without inspecting them.
 func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	// CSRF defenses (on top of the loopback bind): same-origin + a JSON body.
-	// A cross-site HTML form cannot set application/json, and a cross-origin
-	// fetch with it triggers a preflight we never answer.
+	// CSRF guard: strict same-origin. A multipart body can be sent cross-site
+	// without a content-type preflight, so a present, matching Origin is the
+	// mandatory defense on top of the loopback bind.
 	if !sameOrigin(r) {
 		http.Error(w, "cross-origin request rejected", http.StatusForbidden)
-		return
-	}
-	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		http.Error(w, "expected application/json", http.StatusUnsupportedMediaType)
 		return
 	}
 
@@ -82,15 +80,13 @@ func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(io.LimitReader(r.Body, 5<<20)) // 5 MiB cap
+	files, message, err := parseFileSet(r, cfg.SiteDir)
 	if err != nil {
-		http.Error(w, "read body", http.StatusBadRequest)
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
-	// Pretty-print so committed content diffs line-by-line (issue #13).
-	pretty, err := prettyJSON(body)
-	if err != nil {
-		http.Error(w, "body is not valid JSON", http.StatusBadRequest)
+	if len(files) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "no files in request"})
 		return
 	}
 
@@ -99,7 +95,7 @@ func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "auth: " + err.Error()})
 		return
 	}
-	commit, err := ws.save(cfg.ContentPath, pretty, auth)
+	commit, err := ws.saveFiles(files, message, auth)
 	if err != nil {
 		var pc *pushConflict
 		if errors.As(err, &pc) {
@@ -114,6 +110,56 @@ func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "commit": commit})
+}
+
+// resolveUnderSite maps a web-root-relative path to a repo-relative path under
+// the configured site dir, neutralising traversal and refusing any .git segment.
+func resolveUnderSite(siteDir, webPath string) (string, error) {
+	rel := strings.TrimPrefix(path.Clean("/"+webPath), "/")
+	if rel == "" || rel == "." {
+		return "", fmt.Errorf("invalid path %q", webPath)
+	}
+	base := strings.TrimPrefix(path.Clean("/"+siteDir), "/")
+	full := path.Join(base, rel)
+	for _, seg := range strings.Split(full, "/") {
+		if seg == ".git" {
+			return "", fmt.Errorf("refused path %q", webPath)
+		}
+	}
+	return full, nil
+}
+
+// parseFileSet reads a multipart request into a file set. Each file part's field
+// name is a web-root-relative path, resolved under siteDir; an optional
+// __message field carries the commit message.
+func parseFileSet(r *http.Request, siteDir string) ([]fileWrite, string, error) {
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		return nil, "", fmt.Errorf("expected multipart/form-data: %w", err)
+	}
+	var files []fileWrite
+	for name, headers := range r.MultipartForm.File {
+		repoPath, err := resolveUnderSite(siteDir, name)
+		if err != nil {
+			return nil, "", err
+		}
+		for _, fh := range headers {
+			f, err := fh.Open()
+			if err != nil {
+				return nil, "", fmt.Errorf("open %s: %w", name, err)
+			}
+			content, err := io.ReadAll(f)
+			f.Close()
+			if err != nil {
+				return nil, "", fmt.Errorf("read %s: %w", name, err)
+			}
+			files = append(files, fileWrite{path: repoPath, content: content})
+		}
+	}
+	message := ""
+	if v := r.MultipartForm.Value["__message"]; len(v) > 0 {
+		message = v[0]
+	}
+	return files, message, nil
 }
 
 // handleQuit stops the server — used by the admin "Quit Setzer" button.
@@ -142,12 +188,13 @@ func (s *server) signalStop() {
 	}
 }
 
-// sameOrigin rejects requests whose Origin host differs from the server's.
-// A missing Origin (non-browser clients) is allowed; browsers always send it on POST.
+// sameOrigin requires a present Origin header whose host matches the server's.
+// This is Setzer's CSRF guard: browsers set Origin unforgeably on cross-origin
+// requests, so a missing or foreign Origin is rejected (fail closed).
 func sameOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
-		return true
+		return false
 	}
 	u, err := url.Parse(origin)
 	if err != nil {
@@ -160,18 +207,6 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
-}
-
-// prettyJSON reformats raw JSON with 2-space indentation and a trailing newline,
-// preserving the original key order, so committed content diffs line-by-line.
-// It also validates: malformed JSON returns an error.
-func prettyJSON(raw []byte) ([]byte, error) {
-	var b bytes.Buffer
-	if err := json.Indent(&b, raw, "", "  "); err != nil {
-		return nil, err
-	}
-	b.WriteByte('\n')
-	return b.Bytes(), nil
 }
 
 // compareURL builds a GitHub "open a PR" link comparing branch against base.

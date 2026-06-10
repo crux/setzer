@@ -57,7 +57,7 @@ func TestSaveOffloadsOnDivergence(t *testing.T) {
 	}
 
 	// Setzer saves v3 on its now-stale base -> non-fast-forward -> offload.
-	if _, serr := ws.save("content.json", []byte("{\"v\":3}\n"), nil); true {
+	if _, serr := ws.saveFiles([]fileWrite{{path: "content.json", content: []byte("{\"v\":3}\n")}}, "", nil); true {
 		var pc *pushConflict
 		if !errors.As(serr, &pc) {
 			t.Fatalf("expected pushConflict, got: %v", serr)

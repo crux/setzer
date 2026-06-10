@@ -43,7 +43,7 @@ func TestSavePushesToRemote(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []byte("{\"v\":2}\n")
-	if _, err := ws.save("content.json", want, nil); err != nil {
+	if _, err := ws.saveFiles([]fileWrite{{path: "content.json", content: want}}, "", nil); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 

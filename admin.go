@@ -36,11 +36,10 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := &Config{
-		RepoURL:     strings.TrimSpace(r.FormValue("repo_url")),
-		Branch:      strings.TrimSpace(r.FormValue("branch")),
-		ContentPath: strings.TrimSpace(r.FormValue("content_path")),
-		SiteDir:     strings.TrimSpace(r.FormValue("site_dir")),
-		UseGH:       r.FormValue("use_gh") == "1",
+		RepoURL: strings.TrimSpace(r.FormValue("repo_url")),
+		Branch:  strings.TrimSpace(r.FormValue("branch")),
+		SiteDir: strings.TrimSpace(r.FormValue("site_dir")),
+		UseGH:   r.FormValue("use_gh") == "1",
 	}
 	if cfg.RepoURL == "" {
 		http.Error(w, "repository URL is required", http.StatusBadRequest)
@@ -48,9 +47,6 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if cfg.Branch == "" {
 		cfg.Branch = "main"
-	}
-	if cfg.ContentPath == "" {
-		cfg.ContentPath = "content.json"
 	}
 	if cfg.SiteDir == "" {
 		cfg.SiteDir = "."
@@ -114,8 +110,6 @@ var adminTmpl = template.Must(template.New("admin").Parse(`<!DOCTYPE html>
    <input name="repo_url" value="{{.Cfg.RepoURL}}" placeholder="https://github.com/owner/repo.git" required></label>
   <label>Branch
    <input name="branch" value="{{if .Cfg.Branch}}{{.Cfg.Branch}}{{else}}main{{end}}"></label>
-  <label>Content path (within the repo)
-   <input name="content_path" value="{{if .Cfg.ContentPath}}{{.Cfg.ContentPath}}{{else}}content.json{{end}}"></label>
   <label>Site directory (serve root in the repo)
    <input name="site_dir" value="{{if .Cfg.SiteDir}}{{.Cfg.SiteDir}}{{else}}.{{end}}"></label>
   <label style="display:flex;align-items:center;gap:8px">

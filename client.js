@@ -19,16 +19,22 @@
     });
   }
 
-  // publish sends content to Setzer, which commits and pushes it. Resolves with
-  // the server JSON on success. On HTTP 409 it rejects with an Error whose
-  // `.conflict` is { error, branch, url } — the edit was offloaded to a branch
-  // for the human to merge on GitHub.
-  function publish(data) {
-    return fetch(SAVE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
-    }).then(function (r) {
+  // publish commits a set of files. `files` is an array of { path, content },
+  // where path is web-root-relative and content is a string (text) or a
+  // Blob/File/ArrayBuffer (binary). opts may carry { message }. Sends one
+  // multipart/form-data POST (one part per file, field name = path); Setzer
+  // writes all files under its serving root and commits them as a single commit.
+  // Resolves with the server JSON; on HTTP 409 it rejects with an Error whose
+  // `.conflict` is { error, branch, url }.
+  function publish(files, opts) {
+    opts = opts || {};
+    var fd = new FormData();
+    files.forEach(function (f) {
+      var part = (f.content instanceof Blob) ? f.content : new Blob([f.content]);
+      fd.append(f.path, part, f.path);
+    });
+    if (opts.message) fd.append("__message", opts.message);
+    return fetch(SAVE_URL, { method: "POST", body: fd }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (body) {
         if (r.status === 409) {
           var ce = new Error((body && body.error) || "Content changed elsewhere.");
