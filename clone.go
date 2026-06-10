@@ -134,8 +134,11 @@ func (w *workspace) pull(auth transport.AuthMethod) error {
 	return nil
 }
 
-// errNonFastForward signals the remote moved on; the caller should reload and retry.
-var errNonFastForward = errors.New("non-fast-forward push rejected")
+// pushConflict means the publish couldn't fast-forward because the remote moved;
+// the local commit was offloaded to a side branch for the human to merge.
+type pushConflict struct{ branch string }
+
+func (e *pushConflict) Error() string { return "publish conflict: offloaded to " + e.branch }
 
 // save writes data to contentPath within the clone, commits it, and pushes to origin.
 func (w *workspace) save(contentPath string, data []byte, auth transport.AuthMethod) (string, error) {
@@ -176,10 +179,46 @@ func (w *workspace) save(contentPath string, data []byte, auth transport.AuthMet
 	case err == nil, errors.Is(err, git.NoErrAlreadyUpToDate):
 		return hash.String(), nil
 	case isNonFastForward(err):
-		return "", errNonFastForward
+		branch, oerr := w.offloadToBranch(hash, auth)
+		if oerr != nil {
+			return "", fmt.Errorf("publish conflict, and offloading it to a branch failed: %w", oerr)
+		}
+		return "", &pushConflict{branch: branch}
 	default:
 		return "", fmt.Errorf("push: %w", err)
 	}
+}
+
+// offloadToBranch preserves a commit that couldn't fast-forward: it creates and
+// pushes a "setzer/draft-<ts>" branch holding the commit, then returns the local
+// branch to current origin/<branch>. The reset is safe — the work is already on
+// the pushed branch — so nothing is lost; the human merges the draft on GitHub.
+func (w *workspace) offloadToBranch(commit plumbing.Hash, auth transport.AuthMethod) (string, error) {
+	name := "setzer/draft-" + time.Now().UTC().Format("20060102-150405")
+	ref := plumbing.NewBranchReferenceName(name)
+	if err := w.repo.Storer.SetReference(plumbing.NewHashReference(ref, commit)); err != nil {
+		return "", err
+	}
+	rs := gitconfig.RefSpec(fmt.Sprintf("%s:%s", ref, ref))
+	if err := w.repo.Push(&git.PushOptions{RemoteName: "origin", Auth: auth, RefSpecs: []gitconfig.RefSpec{rs}}); err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
+		return "", fmt.Errorf("push draft branch: %w", err)
+	}
+	// Refresh origin/<branch>, then reset local <branch> to it (clean main).
+	if err := w.repo.Fetch(&git.FetchOptions{RemoteName: "origin", Auth: auth}); err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
+		return "", fmt.Errorf("fetch: %w", err)
+	}
+	remoteRef, err := w.repo.Reference(plumbing.NewRemoteReferenceName("origin", w.branch), true)
+	if err != nil {
+		return "", err
+	}
+	wt, err := w.repo.Worktree()
+	if err != nil {
+		return "", err
+	}
+	if err := wt.Reset(&git.ResetOptions{Commit: remoteRef.Hash(), Mode: git.HardReset}); err != nil {
+		return "", fmt.Errorf("reset to origin/%s: %w", w.branch, err)
+	}
+	return name, nil
 }
 
 // isNonFastForward detects a push rejected because the remote advanced.

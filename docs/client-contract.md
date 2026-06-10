@@ -38,8 +38,11 @@ Setzer writes it to the configured content path, commits, and pushes.
 | Status | Body | Meaning |
 |--------|------|---------|
 | `200`  | `{ ok: true, commit: "<sha>" }` | committed and pushed |
-| `409`  | `{ error }` | the repo moved on — reload and retry |
+| `409`  | `{ error, branch, url }` | **the site changed elsewhere** — the edit couldn't fast-forward, so Setzer offloaded it to branch `branch` (push it / merge on GitHub at `url`) and returned to the current published content. Show `error`; offer `url`. |
 | other  | `{ error }` | surface the message to the user |
+
+On `409` the editor should surface the message and the `url` (a GitHub compare/PR
+link), then reload — the served content is now the current published version.
 
 ### Requirements
 

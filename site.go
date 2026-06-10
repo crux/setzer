@@ -101,8 +101,13 @@ func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
 	}
 	commit, err := ws.save(cfg.ContentPath, pretty, auth)
 	if err != nil {
-		if errors.Is(err, errNonFastForward) {
-			writeJSON(w, http.StatusConflict, map[string]any{"error": "content changed upstream; reload and retry"})
+		var pc *pushConflict
+		if errors.As(err, &pc) {
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"error":  "The site changed elsewhere, so this edit couldn't be published directly. It was saved to the branch \"" + pc.branch + "\" — open it on GitHub to merge. The editor now shows the current published content.",
+				"branch": pc.branch,
+				"url":    compareURL(cfg.RepoURL, cfg.Branch, pc.branch),
+			})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
@@ -167,4 +172,28 @@ func prettyJSON(raw []byte) ([]byte, error) {
 	}
 	b.WriteByte('\n')
 	return b.Bytes(), nil
+}
+
+// compareURL builds a GitHub "open a PR" link comparing branch against base.
+func compareURL(repoURL, base, branch string) string {
+	web := webBase(repoURL)
+	if web == "" {
+		return ""
+	}
+	return web + "/compare/" + base + "..." + branch + "?expand=1"
+}
+
+// webBase turns a clone URL into its https web base, e.g.
+// https://github.com/owner/repo(.git) or git@github.com:owner/repo(.git)
+// -> https://github.com/owner/repo
+func webBase(repoURL string) string {
+	s := strings.TrimSuffix(strings.TrimSpace(repoURL), ".git")
+	switch {
+	case strings.HasPrefix(s, "git@"):
+		return "https://" + strings.Replace(strings.TrimPrefix(s, "git@"), ":", "/", 1)
+	case strings.HasPrefix(s, "https://"), strings.HasPrefix(s, "http://"):
+		return s
+	default:
+		return ""
+	}
 }
