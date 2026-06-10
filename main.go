@@ -22,6 +22,7 @@ func main() {
 	// reachable off-host. Binding to 127.0.0.1 enforces that at the socket.
 	addr := flag.String("addr", "127.0.0.1:8765", "loopback address to listen on")
 	noOpen := flag.Bool("no-open", false, "do not open the browser on start")
+	dev := flag.String("dev", "", "dev mode: serve this local dir live and write saves into it (no git)")
 	flag.Parse()
 
 	cfg, err := LoadConfig()
@@ -30,7 +31,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srv := &server{cfg: cfg, stop: make(chan struct{})}
+	srv := &server{cfg: cfg, stop: make(chan struct{}), dev: *dev}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/admin", srv.handleAdmin)   // config UI
@@ -59,7 +60,10 @@ func main() {
 	}
 	url := "http://" + ln.Addr().String() + "/"
 	log.Printf("setzer listening on %s", url)
-	if cfg.Configured() {
+	switch {
+	case *dev != "":
+		log.Printf("dev mode: serving %s live — saves write here, no git", *dev)
+	case cfg.Configured():
 		log.Printf("configured for %s (branch %s)", cfg.RepoURL, cfg.Branch)
 		// Clone/refresh the working copy in the background so startup isn't
 		// blocked on the network.
@@ -70,7 +74,7 @@ func main() {
 				log.Printf("workspace ready")
 			}
 		}()
-	} else {
+	default:
 		log.Printf("not configured — open the address above to set up")
 	}
 
@@ -109,4 +113,5 @@ type server struct {
 	cfg  *Config
 	ws   *workspace
 	stop chan struct{}
+	dev  string // non-empty: dev mode — serve this dir live, save with no git
 }

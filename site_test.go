@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"mime/multipart"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -66,5 +68,32 @@ func TestParseFileSet(t *testing.T) {
 	}
 	if !bytes.Equal(byPath["docs/img/x.bin"], []byte{0x00, 0x01, 0x02, 0xff}) {
 		t.Errorf("binary part not preserved: %v", byPath["docs/img/x.bin"])
+	}
+}
+
+func TestHandleSaveDevWritesNoGit(t *testing.T) {
+	dir := t.TempDir()
+	srv := &server{dev: dir}
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	p, _ := mw.CreateFormFile("content.json", "content.json")
+	_, _ = p.Write([]byte("{\"v\":1}\n"))
+	_ = mw.Close()
+
+	req := httptest.NewRequest("POST", "/__save", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Origin", "http://"+req.Host) // strict-origin guard must pass
+	rec := httptest.NewRecorder()
+	srv.handleSave(rec, req) // dispatches to handleSaveDev in dev mode
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "content.json")); string(got) != "{\"v\":1}\n" {
+		t.Fatalf("written content = %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+		t.Fatal("dev mode must not create a git repo")
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,16 @@ const preparingPage = `<!DOCTYPE html><meta charset="utf-8"><title>Setzer</title
 
 // handleSite serves the working clone (the site plus its in-site editor) at the root.
 func (s *server) handleSite(w http.ResponseWriter, r *http.Request) {
+	if s.dev != "" {
+		// Dev mode: serve the local dir live (edits visible on refresh).
+		if strings.Contains(r.URL.Path, "/.git") {
+			http.NotFound(w, r)
+			return
+		}
+		http.FileServer(http.Dir(s.dev)).ServeHTTP(w, r)
+		return
+	}
+
 	s.mu.RLock()
 	cfg := s.cfg
 	ws := s.ws
@@ -68,6 +79,11 @@ func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
 	// mandatory defense on top of the loopback bind.
 	if !sameOrigin(r) {
 		http.Error(w, "cross-origin request rejected", http.StatusForbidden)
+		return
+	}
+
+	if s.dev != "" {
+		s.handleSaveDev(w, r)
 		return
 	}
 
@@ -160,6 +176,33 @@ func parseFileSet(r *http.Request, siteDir string) ([]fileWrite, string, error) 
 		message = v[0]
 	}
 	return files, message, nil
+}
+
+// handleSaveDev (dev mode) writes the file set straight into the dev dir with no
+// git — for fast local iteration. The files land in the served dir, so a browser
+// refresh shows the result.
+func (s *server) handleSaveDev(w http.ResponseWriter, r *http.Request) {
+	files, _, err := parseFileSet(r, ".")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	if len(files) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "no files in request"})
+		return
+	}
+	for _, f := range files {
+		full := filepath.Join(s.dev, filepath.FromSlash(f.path))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+			return
+		}
+		if err := os.WriteFile(full, f.content, 0o644); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "dev": true, "commit": "dev"})
 }
 
 // handleQuit stops the server — used by the admin "Quit Setzer" button.
