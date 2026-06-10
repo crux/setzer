@@ -37,8 +37,9 @@ func main() {
 	mux.HandleFunc("/config", srv.handleConfig) // POST config
 	mux.HandleFunc("/__save", srv.handleSave)   // POST content -> commit + push
 	mux.HandleFunc("/__quit", srv.handleQuit)   // POST -> stop the server
-	mux.HandleFunc("/__ping", srv.handlePing)   // liveness probe (single-instance check)
-	mux.HandleFunc("/", srv.handleSite)         // serve the working clone (or setup)
+	mux.HandleFunc("/__ping", srv.handlePing)               // liveness probe (single-instance check)
+	mux.HandleFunc("/__setzer/client.js", srv.handleClient) // version-locked client lib
+	mux.HandleFunc("/", srv.handleSite)                     // serve the working clone (or setup)
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
