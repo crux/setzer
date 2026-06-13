@@ -32,7 +32,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srv := &server{cfg: cfg, stop: make(chan struct{}), dev: *dev}
+	srv := &server{cfg: cfg, stop: make(chan struct{}), dev: *dev, events: make(chan trayEvent, 8)}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/admin", srv.handleAdmin)   // config UI
@@ -116,9 +116,10 @@ func main() {
 // admin UI can replace the config (and trigger a re-clone) while requests are in
 // flight. stop is closed once to trigger a graceful shutdown.
 type server struct {
-	mu   sync.RWMutex
-	cfg  *Config
-	ws   *workspace
-	stop chan struct{}
-	dev  string // non-empty: dev mode — serve this dir live, save with no git
+	mu     sync.RWMutex
+	cfg    *Config
+	ws     *workspace
+	stop   chan struct{}
+	dev    string         // non-empty: dev mode — serve this dir live, save with no git
+	events chan trayEvent // UI events for the tray (publish/conflict)
 }

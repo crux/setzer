@@ -115,6 +115,11 @@ func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var pc *pushConflict
 		if errors.As(err, &pc) {
+			s.emit(trayEvent{
+				kind: "conflict", title: "Setzer — conflict",
+				body:   "Edit saved to branch " + pc.branch + " — merge on GitHub",
+				branch: pc.branch, url: compareURL(cfg.RepoURL, cfg.Branch, pc.branch),
+			})
 			writeJSON(w, http.StatusConflict, map[string]any{
 				"error":  "The site changed elsewhere, so this edit couldn't be published directly. It was saved to the branch \"" + pc.branch + "\" — open it on GitHub to merge. The editor now shows the current published content.",
 				"branch": pc.branch,
@@ -125,6 +130,11 @@ func (s *server) handleSave(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return
 	}
+	sha := commit
+	if len(sha) > 7 {
+		sha = sha[:7]
+	}
+	s.emit(trayEvent{kind: "published", title: "Setzer", body: "Published ✓ (" + sha + ")"})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "commit": commit})
 }
 
