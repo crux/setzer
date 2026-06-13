@@ -23,6 +23,7 @@ func main() {
 	addr := flag.String("addr", "127.0.0.1:8765", "loopback address to listen on")
 	noOpen := flag.Bool("no-open", false, "do not open the browser on start")
 	dev := flag.String("dev", "", "dev mode: serve this local dir live and write saves into it (no git)")
+	noTray := flag.Bool("no-tray", false, "run headless (no menu-bar/tray icon)")
 	flag.Parse()
 
 	cfg, err := LoadConfig()
@@ -98,7 +99,13 @@ func main() {
 		}
 	}()
 
-	<-srv.stop // closed by /__quit
+	// Show a menu-bar/tray presence unless -no-tray (headless/CI/scripting). The
+	// tray is orthogonal to dev mode, so -dev gets it too.
+	if !*noTray {
+		runTray(srv, url)
+	} else {
+		<-srv.stop // closed by /__quit
+	}
 	log.Printf("shutting down")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
