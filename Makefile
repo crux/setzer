@@ -26,8 +26,8 @@ app: ## Build Setzer.app (macOS, host arch; double-click to run)
 dist: ## Build a universal Setzer.app DMG for release (-> dist/)
 	@rm -rf "$(DIST)/Setzer.app" "$(DIST)/setzer-arm64" "$(DIST)/setzer-amd64" "$(DIST)/Setzer-$(VERSION).dmg"
 	@mkdir -p "$(DIST)/Setzer.app/Contents/MacOS" "$(DIST)/Setzer.app/Contents/Resources"
-	GOOS=darwin GOARCH=arm64 go build -o "$(DIST)/setzer-arm64" .
-	GOOS=darwin GOARCH=amd64 go build -o "$(DIST)/setzer-amd64" .
+	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 CC="clang -arch arm64" go build -o "$(DIST)/setzer-arm64" .
+	CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="clang -arch x86_64" go build -o "$(DIST)/setzer-amd64" .
 	lipo -create -output "$(DIST)/Setzer.app/Contents/MacOS/setzer" "$(DIST)/setzer-arm64" "$(DIST)/setzer-amd64"
 	cp packaging/macos/Info.plist "$(DIST)/Setzer.app/Contents/Info.plist"
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" "$(DIST)/Setzer.app/Contents/Info.plist"
