@@ -65,23 +65,37 @@ make app        # build build/Setzer.app (macOS)
 
 `make` on its own lists all targets.
 
+### Develop a site locally
+
+For fast iteration on a site (and its editor) without commit/push round-trips:
+
+```sh
+setzer -dev path/to/site/docs
+```
+
+Setzer serves that directory **live** (edits show on a refresh) and the in-site
+editor works, but saves write straight into the directory with **no git** — so
+you can pick/crop/publish and `git diff` the result locally. Add `-no-tray` to
+run fully headless (CI/scripting). When a change is good, `git commit && push`.
+
 ### macOS app
 
 `make app` produces a double-clickable **`Setzer.app`**. Launching it opens the
-admin UI in your browser; it runs as a background agent (no Dock icon). **Quit**
-via the **“Quit Setzer”** button in the admin page (or `killall setzer`). It's an
-unsigned bundle — see [Install](#install) for the first-launch Gatekeeper steps.
+editor in your browser and shows a **menu-bar icon** (no Dock icon) with
+**Open Setzer** · status · **Quit Setzer**, and posts OS notifications when you
+publish — or when a publish hits a conflict. Run headless with `-no-tray`. It's
+an unsigned bundle — see [Install](#install) for the first-launch Gatekeeper steps.
 
 ## Releasing
 
 Cut a release with one command — CI does everything else:
 
 ```sh
-make release VERSION=0.1.3
+make release VERSION=0.2.0
 ```
 
-`make release` checks you're on a clean, pushed `main`, then tags `v0.1.3` and
-pushes it (the equivalent of `git tag v0.1.3 && git push origin v0.1.3`), which
+`make release` checks you're on a clean, pushed `main`, then tags `v0.2.0` and
+pushes it (the equivalent of `git tag v0.2.0 && git push origin v0.2.0`), which
 triggers the workflow below.
 
 On a `v*` tag, [`.github/workflows/release.yml`](.github/workflows/release.yml)
@@ -119,11 +133,12 @@ Open <http://127.0.0.1:8765> — when unconfigured it redirects to `/admin`. Fil
 | Repository URL | the site repo Setzer commits to | `https://github.com/owner/site.git` |
 | Branch | branch to serve and push | `main` |
 | Site directory | publish root within the repo | `docs` (or `.` for repo root) |
-| Content path | the editable content file, repo-relative | `docs/content.json` |
 | Access token | GitHub PAT — see below | — |
 
 On Save, Setzer clones the repo, then serves it at `/`. The in-site editor posts
-its content to `/__save`, which writes the file, commits, and pushes.
+its changed files to `/__save`, which writes them, commits, and pushes — Setzer
+is content-agnostic and never needs to know *where* content lives (the editor
+does). See [`docs/client-contract.md`](docs/client-contract.md).
 
 ## GitHub access token (PAT)
 
@@ -173,6 +188,7 @@ Then every Setzer publish (a push to `main`) is served by Pages automatically.
 
 ## Status
 
-Early MVP — the edit → commit → push loop works end to end and is verified
-against a live repo. `wiener-bluut` is the reference site: its in-site editor
-posts to `/__save`, and it is served via GitHub Pages.
+Working end to end and verified against a live repo: content-agnostic multipart
+publishing, in-browser image upload with crop, single-active-editor coordination,
+safe conflict offload to a branch, a `-dev` loop, and a menu-bar presence with
+notifications. `wiener-bluut` is the reference site, served via GitHub Pages.
