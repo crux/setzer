@@ -6,8 +6,23 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestHandleReady(t *testing.T) {
+	check := func(s *server, want string) {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		s.handleReady(rec, httptest.NewRequest("GET", "/__ready", nil))
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Fatalf("ready body = %q, want it to contain %q", rec.Body.String(), want)
+		}
+	}
+	check(&server{dev: "/some/dir"}, `"ready":true`)        // dev mode serves immediately
+	check(&server{cfg: &Config{}}, `"ready":false`)         // unconfigured, no clone
+	check(&server{cfg: &Config{RepoURL: "x"}}, `"ready":false`) // configured but ws still nil (cloning)
+}
 
 func TestResolveUnderSite(t *testing.T) {
 	cases := []struct {

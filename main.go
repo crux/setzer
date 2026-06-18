@@ -40,6 +40,7 @@ func main() {
 	mux.HandleFunc("/__save", srv.handleSave)   // POST content -> commit + push
 	mux.HandleFunc("/__quit", srv.handleQuit)   // POST -> stop the server
 	mux.HandleFunc("/__ping", srv.handlePing)               // liveness probe (single-instance check)
+	mux.HandleFunc("/__ready", srv.handleReady)             // clone-ready probe (preparing page polls)
 	mux.HandleFunc("/__setzer/client.js", srv.handleClient) // version-locked client lib
 	mux.HandleFunc("/", srv.handleSite)                     // serve the working clone (or setup)
 

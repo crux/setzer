@@ -15,8 +15,26 @@ import (
 
 const preparingPage = `<!DOCTYPE html><meta charset="utf-8"><title>Setzer</title>
 <body style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;background:#f7f3ec;color:#23201c;display:grid;place-items:center;height:100vh;margin:0">
-<div style="text-align:center"><h1>Preparing…</h1><p>Setzer is cloning the site. Refresh in a moment.</p>
-<p><a href="/admin" style="color:#7a2d28">Settings</a></p></div></body>`
+<div style="text-align:center">
+<h1>Preparing…</h1>
+<p>Setzer is cloning the site — usually just a few seconds.<br>This page reloads itself when it's ready.</p>
+<p id="slow" style="display:none;color:#7a2d28">Taking longer than usual — check <a href="/admin" style="color:#7a2d28">Settings</a> (repo URL &amp; token).</p>
+<p><a href="/" style="color:#7a2d28">Reload now</a> &middot; <a href="/admin" style="color:#7a2d28">Settings</a></p>
+</div>
+<script>
+var start = Date.now();
+(function poll() {
+  fetch("/__ready").then(function (r) { return r.json(); }).then(function (d) {
+    if (d && d.ready) { location.reload(); return; }
+    if (Date.now() - start > 12000) document.getElementById("slow").style.display = "block";
+    setTimeout(poll, 1000);
+  }).catch(function () {
+    if (Date.now() - start > 12000) document.getElementById("slow").style.display = "block";
+    setTimeout(poll, 1500);
+  });
+})();
+</script>
+</body>`
 
 // handleSite serves the working clone (the site plus its in-site editor) at the root.
 func (s *server) handleSite(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +70,15 @@ func (s *server) handleSite(w http.ResponseWriter, r *http.Request) {
 	}
 	root := filepath.Join(ws.dir, siteSubdir(cfg.SiteDir))
 	http.FileServer(http.Dir(root)).ServeHTTP(w, r)
+}
+
+// handleReady reports whether the site can be served yet (clone finished, or dev
+// mode). The "preparing" page polls this and reloads the moment it's ready.
+func (s *server) handleReady(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	ready := s.dev != "" || (s.cfg.Configured() && s.ws != nil)
+	s.mu.RUnlock()
+	writeJSON(w, http.StatusOK, map[string]any{"ready": ready})
 }
 
 // siteSubdir cleans the configured serve root, anchored so it cannot escape the clone.
