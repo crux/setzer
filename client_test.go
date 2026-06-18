@@ -18,7 +18,7 @@ func TestHandleClientServesLib(t *testing.T) {
 		t.Fatalf("Content-Type = %q, want javascript", ct)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "window.Setzer") || !strings.Contains(body, "publish") || !strings.Contains(body, "isPrimary") {
-		t.Fatal("served client is missing window.Setzer / publish / isPrimary")
+	if !strings.Contains(body, "window.Setzer") || !strings.Contains(body, "publish") || !strings.Contains(body, "beginEdit") {
+		t.Fatal("served client is missing window.Setzer / publish / beginEdit")
 	}
 }

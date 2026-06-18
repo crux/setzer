@@ -47,44 +47,64 @@
     });
   }
 
-  // -- single active editor tab -----------------------------------------------
-  // Exactly one open tab holds the "setzer-editor" Web Lock and is "primary"
-  // (may edit); others wait. When the primary tab closes, a waiting tab is
-  // promoted automatically. Browsers can't focus or close other tabs, so a
-  // secondary tab simply stays read-only. No Web Locks support -> assume primary
-  // (no coordination, same as before).
-  var primary = false;
-  var listeners = [];
+  // -- one open editor at a time (always recoverable) -------------------------
+  // Coordinated over BroadcastChannel by request-response, NOT Web Locks: a tab
+  // that wants to edit asks "anyone editing?" and only a live, responsive editor
+  // answers. A closed, crashed, or HUNG holder can't answer, so the slot is
+  // simply free — no lock can get stuck. An open editor can always be stolen by
+  // the human; the stolen tab stands down. Worst case (a rare simultaneous open)
+  // is two edits, which the git layer offloads to a branch — never lost.
+  var chan = ("BroadcastChannel" in window) ? new BroadcastChannel("setzer-editing") : null;
+  var myId = Math.random().toString(36).slice(2);
+  var editing = false;
+  var onStolen = null;
 
-  function setPrimary(v) {
-    if (v === primary) return;
-    primary = v;
-    listeners.forEach(function (cb) { try { cb(primary); } catch (e) {} });
+  if (chan) chan.addEventListener("message", function (e) {
+    var m = e.data || {};
+    if (m.type === "who" && editing) {
+      chan.postMessage({ type: "here", id: myId }); // I'm the editor — answer the probe
+    } else if (m.type === "take" && m.from !== myId && editing) {
+      editing = false;                              // someone took over — stand down
+      if (onStolen) { try { onStolen(); } catch (e) {} }
+    }
+  });
+
+  // beginEdit(ok, busy): probe for a live editor (~250ms, waiting for an answer).
+  // ok() if the slot is free — or the holder is gone/hung and can't answer; else
+  // busy(steal), where steal() forces a takeover and then opens.
+  function beginEdit(ok, busy) {
+    if (!chan) { editing = true; ok(); return; }
+    var answered = false;
+    var probe = function (e) { if ((e.data || {}).type === "here") answered = true; };
+    chan.addEventListener("message", probe);
+    chan.postMessage({ type: "who", from: myId });
+    setTimeout(function () {
+      chan.removeEventListener("message", probe);
+      if (answered) {
+        busy(function steal() {
+          chan.postMessage({ type: "take", from: myId });
+          editing = true;
+          ok();
+        });
+      } else {
+        editing = true;
+        ok();
+      }
+    }, 250);
   }
 
-  // onPrimary(cb) registers a primary-state listener and fires it immediately
-  // with the current state.
-  function onPrimary(cb) {
-    listeners.push(cb);
-    try { cb(primary); } catch (e) {}
-  }
+  function endEdit() { editing = false; } // release the slot when the editor closes
 
-  if (navigator.locks && navigator.locks.request) {
-    navigator.locks.request("setzer-editor", function () {
-      setPrimary(true);
-      // Hold the lock until this tab goes away: the promise never resolves, so
-      // the lock releases only on tab close -> the next waiter is promoted.
-      return new Promise(function () {});
-    }).catch(function () { /* lock error: stay secondary */ });
-  } else {
-    setPrimary(true);
-  }
+  // onEditorStolen(cb): fired when another tab takes over — the site should close
+  // its editor.
+  function onEditorStolen(cb) { onStolen = cb; }
 
   window.Setzer = {
-    version: "1",
+    version: "2",
     load: load,
     publish: publish,
-    isPrimary: function () { return primary; },
-    onPrimary: onPrimary
+    beginEdit: beginEdit,
+    endEdit: endEdit,
+    onEditorStolen: onEditorStolen
   };
 })();
