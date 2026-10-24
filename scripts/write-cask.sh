@@ -18,9 +18,8 @@ cask "setzer" do
 
   app "Setzer.app"
 
-  postflight do
-    system_command "/usr/bin/xattr",
-      args: ["-rd", "com.apple.quarantine", "#{appdir}/Setzer.app"]
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-rd", "com.apple.quarantine", "{{appdir}}/Setzer.app"]
   end
 end
 CASK
